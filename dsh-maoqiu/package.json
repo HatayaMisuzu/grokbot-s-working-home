@@ -1,0 +1,46 @@
+{
+  "name": "dsh-maoqiu",
+  "version": "0.3.0",
+  "description": "保存可修订经验，按预算连续活动、延续草稿、局部布置与恢复空间。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./store": "./lib/store.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "bin": {
+    "maoqiu": "bin/maoqiu.js"
+  },
+  "files": [
+    "lib",
+    "bin",
+    "scripts",
+    "test",
+    "locale",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md",
+    "AGENTS.md",
+    "CHANGES.md",
+    "VALIDATION.md",
+    "FREETIME.md"
+  ],
+  "engines": {
+    "node": ">=22.13.0",
+    "dsh": ">=0.2.1-rc.3 <0.3.0-0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check.mjs",
+    "smoke:dsh": "node scripts/dsh-smoke.mjs"
+  },
+  "license": "UNLICENSED"
+}

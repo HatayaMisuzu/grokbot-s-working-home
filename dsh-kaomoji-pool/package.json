@@ -1,0 +1,39 @@
+{
+  "name": "@local/kaomoji-pool",
+  "version": "2.0.0",
+  "private": true,
+  "description": "DSH 自由字符画技能与文本画布：自主构图、图层绘制、局部修改和排版检查；保留颜文字池，默认仅在毛球聊天启用。",
+  "type": "module",
+  "engines": { "node": ">=22.13.0", "dsh": ">=0.2.1-rc.3 <0.3.0-0" },
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check.mjs",
+    "smoke:kaomoji": "node scripts/smoke.mjs",
+    "validate:pool": "node scripts/validate-pool.mjs",
+    "smoke:dsh": "node scripts/dsh-smoke.mjs"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "kaomoji.js",
+    "pool.js",
+    "art/",
+    "skills/",
+    "scripts/",
+    "test/",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md",
+    "VALIDATION.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

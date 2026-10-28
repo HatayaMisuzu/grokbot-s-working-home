@@ -1,0 +1,5 @@
+- insert:
+    - id: maoqiu
+      name: dsh-maoqiu
+      config:
+        autoRecallMode: auto

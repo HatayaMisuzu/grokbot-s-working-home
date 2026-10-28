@@ -1,0 +1,17 @@
+# 工作闭环（Workloop）：非简单 DSH 任务的状态与结论守卫。
+# The row id stays stable so a profile patch can override it by id.
+- insert:
+    - id: workloop
+      name: '@local/workloop'
+      config:
+        # Where run records live. Absolute path; data stays outside the plugin.
+        # Defaults to $DSH_HOME/work (usually ~/.dsh/work) when omitted.
+        # home: 'C:/Users/Lenovo/.dsh/work'
+        # Register the seven work_* tools.
+        tools: true
+        # Register the compact protocol section in the system prompt.
+        prompt: true
+        # Inject a small summary of the active run into each turn's context.
+        activeContext: true
+        # Keep each active-run summary bounded (characters).
+        activeContextMax: 700

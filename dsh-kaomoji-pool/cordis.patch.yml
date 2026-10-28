@@ -1,0 +1,18 @@
+# Stable bundle id. The lightweight bridge attaches contributions to chat agents only.
+- insert:
+    - id: kaomoji-pool
+      name: '@local/kaomoji-pool'
+      config:
+        enabled: true
+        activation: auto
+        chatPresets: [maoqiu]
+        art: true
+        # Existing kaomoji configuration remains supported.
+        tool: true
+        prompt: true
+        defaultCount: 8
+        maxCount: 24
+        avoidRecent: 24
+        maxWidth: 120
+        maxHeight: 80
+        historySize: 8

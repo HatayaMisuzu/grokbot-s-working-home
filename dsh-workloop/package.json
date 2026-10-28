@@ -1,0 +1,38 @@
+{
+  "name": "@local/workloop",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "description": "DSH 工作闭环：冻结目标与验收 Claim，绑定文件指纹与真实测试证据，给出诚实的完成判定；编排仍交给 DSH 原生能力。",
+  "exports": {
+    ".": "./lib/index.js",
+    "./store": "./lib/store.js",
+    "./lib/*": "./lib/*",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "lib",
+    "test",
+    "scripts",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "icon.svg",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "check": "node scripts/check.mjs"
+  },
+  "engines": {
+    "node": ">=22.13.0",
+    "dsh": ">=0.2.1-rc.2 <0.3.0-0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "license": "UNLICENSED"
+}

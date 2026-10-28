@@ -1,0 +1,24 @@
+{
+  "name": "@local/dsh-maoqiu-mode",
+  "version": "1.0.1",
+  "private": true,
+  "description": "毛球模式：聊天陪伴、自由思考、情感模拟与轻量工作；自然同步进度，不使用工作闭环重工具",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["index.js", "cordis.patch.yml", "README.md", "package.json", "locale/*.json", "icon.svg"],
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check index.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
