@@ -1,10 +1,10 @@
 {
   "name": "@local/kaomoji-pool",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "private": true,
   "description": "DSH 自由字符画技能与文本画布：自主构图、图层绘制、局部修改和排版检查；保留颜文字池，默认仅在毛球聊天启用。",
   "type": "module",
-  "engines": { "node": ">=22.13.0", "dsh": ">=0.2.1-rc.3 <0.3.0-0" },
+  "engines": { "node": ">=22.13.0", "dsh": ">=0.2.1-rc.4 <0.3.0-0" },
   "scripts": {
     "test": "node --test",
     "check": "node scripts/check.mjs",
@@ -19,6 +19,7 @@
   },
   "files": [
     "index.js",
+    "config.js",
     "kaomoji.js",
     "pool.js",
     "art/",

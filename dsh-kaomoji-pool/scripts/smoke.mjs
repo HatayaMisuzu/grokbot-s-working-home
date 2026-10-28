@@ -117,7 +117,8 @@ assert.equal(all.value.kaomoji.length, 8, 'default count is 8')
 assert.equal(new Set(all.value.kaomoji).size, 8, 'candidates are distinct')
 assert.equal(all.value.remaining, total)
 for (const entry of all.value.kaomoji) assert.ok(inPool(entry), `candidate ${JSON.stringify(entry)} comes from the pool`)
-assert.ok(all.text.includes('挑 1 个'))
+assert.ok(all.text.includes('挑 1–2 个'))
+assert.ok(all.text.includes('不要换成彩色 Emoji'))
 
 // Single Chinese category name.
 const happy = await call({ category: '开心', count: 5 })
@@ -177,7 +178,7 @@ assert.equal(section.interpolate, false)
 assert.ok(section.text.startsWith('## 颜文字池'))
 assert.ok(section.text.includes(`共 ${total} 个颜文字`))
 assert.ok(section.text.includes('kaomoji'))
-assert.ok(section.text.includes('通常最多 1–2 个'), 'usage discipline stays explicit')
+assert.ok(section.text.includes('每条回复 1–2 个'), 'usage discipline stays explicit')
 assert.ok(!section.text.includes('连续两条回复都带'), 'repeated personality guidance is not duplicated here')
 for (const meta of KAOMOJI_CATEGORIES) {
   assert.ok(section.text.includes(`- ${meta.label}（${meta.key}；${meta.hint}）：`), `section lists ${meta.key} with its hint`)

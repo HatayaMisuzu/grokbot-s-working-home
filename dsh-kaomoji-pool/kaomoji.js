@@ -16,13 +16,12 @@
  * `ctx.tools.register` / `ctx.systemPrompt.section` contracts are used.
  */
 import { KAOMOJI_CATEGORIES, KAOMOJI_POOL } from './pool.js'
+import { readConfig as readSharedConfig, KAOMOJI_RULES } from './config.js'
 
 export const name = 'kaomoji-pool'
 export const inject = ['tools']
 
 const SECTION_NAME = 'kaomoji:pool'
-const DEFAULT_SECTION_ORDER = 10300
-const DEFAULT_AVOID_RECENT = 24
 const INVISIBLE = /[\u200B-\u200D\u2060\uFE00-\uFE0F]/g
 
 const CATEGORY_BY_KEY = new Map(KAOMOJI_CATEGORIES.map((meta) => [meta.key, meta]))
@@ -69,33 +68,11 @@ function createRecentStore() {
   return { stateFor }
 }
 
-/**
- * Read the row config without a Config schema: every field is optional and the
- * plugin stays usable when a value is missing or has the wrong type.
- * @param {unknown} raw the row config from cordis.patch.yml.
- */
+/** Shared reader plus kaomoji-specific category filtering. */
 function readConfig(raw) {
-  const config = raw !== null && typeof raw === 'object' ? raw : {}
-  const integer = (value, fallback, min, max) => {
-    const candidate = typeof value === 'number' && Number.isFinite(value) ? Math.floor(value) : fallback
-    return Math.min(max, Math.max(min, candidate))
-  }
-  const inlineCategories = Array.isArray(config.inlineCategories)
-    ? config.inlineCategories.filter((key) => CATEGORY_BY_KEY.has(key))
-    : ALL_CATEGORY_KEYS
-  return {
-    tool: config.tool !== false,
-    prompt: config.prompt !== false,
-    inlinePerCategory: integer(config.inlinePerCategory, 1, 0, 10),
-    inlineCategories: inlineCategories.length > 0 ? inlineCategories : ALL_CATEGORY_KEYS,
-    defaultCount: integer(config.defaultCount, 8, 1, 50),
-    maxCount: integer(config.maxCount, 24, 1, 100),
-    avoidRecent: integer(config.avoidRecent, DEFAULT_AVOID_RECENT, 0, 100),
-    sectionOrder:
-      typeof config.sectionOrder === 'number' && Number.isFinite(config.sectionOrder)
-        ? config.sectionOrder
-        : DEFAULT_SECTION_ORDER,
-  }
+  const config = readSharedConfig(raw)
+  const inlineCategories = (config.inlineCategories ?? ALL_CATEGORY_KEYS).filter((key) => CATEGORY_BY_KEY.has(key))
+  return { ...config, inlineCategories: inlineCategories.length > 0 ? inlineCategories : ALL_CATEGORY_KEYS }
 }
 
 /** FNV-1a, used only to pick stable prompt favourites (no runtime randomness). */
@@ -142,8 +119,8 @@ function buildSectionText(config) {
     `本部署装有颜文字池插件：共 ${TOTAL_KAOMOJI} 个颜文字，按 ${KAOMOJI_CATEGORIES.length} 类情绪组织。`,
     '',
     '使用规则：',
-    '- 只在轻松、日常或陪伴式回复里用颜文字点缀；正式说明、报错、代码、命令、配置、工具结果和严肃话题里不要用。',
-    '- 每条回复通常最多 1–2 个；需要新选择时调用 `kaomoji`，可用 category、count 和 exclude（全角/半角、空格差异会自动归一化）。',
+    ...KAOMOJI_RULES.map((rule) => `- ${rule}`),
+    '- 可用 category、count 和 exclude（全角/半角、空格差异会自动归一化）。',
     '',
     '常用储备（每类若干，可直接取用；括号里是调用工具时的 category 名与适用情绪）：',
   ]
@@ -362,7 +339,7 @@ function buildTool(config, recentStore) {
           type: 'text',
           text: `从颜文字池取到 ${candidates.length} 个候选（${labels}，全池剩余 ${value.remaining} 个）：\n`
             + `${lines.join('\n')}\n`
-            + '挑 1 个最贴合当前情绪的用就行，一条回复不要堆多个。',
+            + '挑 1–2 个最贴合当前情绪的自然点缀，不要堆砌；不要换成彩色 Emoji。',
         }]
       },
     },

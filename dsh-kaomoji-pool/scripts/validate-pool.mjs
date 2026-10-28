@@ -14,6 +14,7 @@
  * Exit code 1 on any violation.
  */
 import { KAOMOJI_CATEGORIES, KAOMOJI_POOL } from '../pool.js'
+import { hasColorEmoji } from '../config.js'
 
 const MIN_PER_CATEGORY = {
   happy: 40,
@@ -91,9 +92,8 @@ for (const meta of KAOMOJI_CATEGORIES) {
     if (CONTROL_OR_SPACE.test(entry)) problems.push(`${where} 含控制字符: ${JSON.stringify(entry)}`)
     if (BANNED_ASCII.test(entry)) problems.push(`${where} 含 Markdown 风险字符: ${JSON.stringify(entry)}`)
     if (/[\u{e000}-\u{f8ff}]/u.test(entry)) problems.push(`${where} 含私用区字符: ${JSON.stringify(entry)}`)
-    if (/[\u{1f300}-\u{1faff}\u{fe0f}\u{200d}\u{200b}-\u{200f}\u{202a}-\u{202e}]/u.test(entry)) {
-      problems.push(`${where} 含彩色 emoji/不可见控制符: ${JSON.stringify(entry)}`)
-    }
+    if (hasColorEmoji(entry)) problems.push(`${where} 含彩色 Emoji 或 Emoji 呈现序列: ${JSON.stringify(entry)}`)
+    if (/[\u{200b}-\u{200f}\u{202a}-\u{202e}]/u.test(entry)) problems.push(`${where} 含不可见控制符: ${JSON.stringify(entry)}`)
     if (/\{\{|\}\}/.test(entry)) problems.push(`${where} 含模板变量标记: ${JSON.stringify(entry)}`)
     if (THEME_DEDUPE.has(entry)) problems.push(`${where} 与人设常用颜文字重复: ${JSON.stringify(entry)}`)
     if (!/[^\x00-\x7f]/.test(entry)) asciiOnly += 1

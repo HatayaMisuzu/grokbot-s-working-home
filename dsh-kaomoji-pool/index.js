@@ -1,31 +1,13 @@
 /** Lightweight profile bridge. Drawing code and kaomoji data load only in chat agents. */
 import { fileURLToPath } from 'node:url'
+import { readConfig, KAOMOJI_RULES } from './config.js'
 
 export const name = 'kaomoji-pool'
 export const inject = ['tools']
 export const SKILL_NAME = 'text-art-freehand'
 const DESCRIPTION = '轻松聊天时自由创作、修改 ASCII / Unicode 字符画。学习构图、轮廓、动作、空间和明暗，用自绘文字或通用画布完成作品；没有预制角色图库。'
 
-export function readConfig(raw = {}) {
-  const value = raw && typeof raw === 'object' ? raw : {}
-  const integer = (key, fallback, min, max) => Number.isSafeInteger(value[key])
-    ? Math.max(min, Math.min(max, value[key])) : fallback
-  return {
-    ...value,
-    enabled: value.enabled !== false,
-    activation: value.activation === 'scoped' ? 'scoped' : 'auto',
-    chatPresets: Array.isArray(value.chatPresets)
-      ? value.chatPresets.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim())
-      : ['maoqiu'],
-    includeSubagents: value.includeSubagents === true,
-    art: value.art !== false,
-    tool: value.tool !== false,
-    prompt: value.prompt !== false,
-    maxWidth: integer('maxWidth', 120, 16, 240),
-    maxHeight: integer('maxHeight', 80, 8, 160),
-    historySize: integer('historySize', 8, 1, 32),
-  }
-}
+export { readConfig }
 
 export function presetOf(ctx, agent) {
   const header = agent?.session?.header || {}
@@ -80,7 +62,7 @@ export async function mountChat(ctx, config) {
         text: [
           '## 轻松聊天的字符创作',
           config.art ? '需要字符画时，先加载 text-art-freehand 技能；没有 skill 工具可用 text_art(action="guide")。自己构图和绘制，用 text_art 保存、组合或局部修改，自由题材不限。成品按工具返回的空格换行原样展示。' : '',
-          config.tool ? '颜文字可用 kaomoji 按情绪取样。' : '',
+          ...(config.tool ? KAOMOJI_RULES : []),
           '只在轻松聊天、毛球来访或创作时使用；正事、严肃话题和工作输出不要装饰。是否画、画多大跟随当前交流，不必每轮画。',
         ].filter(Boolean).join('\n'),
       }))
