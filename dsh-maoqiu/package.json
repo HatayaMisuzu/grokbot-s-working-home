@@ -1,6 +1,6 @@
 {
   "name": "dsh-maoqiu",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "毛球空间与毛球模式：可修订经验、按预算的自在时间、草稿与空间布置，以及陪伴优先的毛球 Agent 预设。",
   "type": "module",
   "main": "lib/index.js",

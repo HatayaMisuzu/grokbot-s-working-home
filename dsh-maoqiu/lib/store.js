@@ -15,6 +15,8 @@ import {
 import { dirname, extname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path'
 import { recallFromStore } from './recall.js'
 import { objects, history, fileVersion, expectVersion } from './space-items.js'
+import { appendJournal, verifyJournal, JOURNAL_FILE } from './journal.js'
+import { CORNER_IDS, cornerList, isPrivate, normalizeCorner, normalizeVisibility } from './home-view.js'
 
 /**
  * Small file backed store for the Maoqiu DSH bundle.
@@ -40,8 +42,11 @@ export class MaoqiuStore {
     this.interestsFile = join(this.spaceDir, 'active_interests.json')
     this.sceneFile = join(this.spaceDir, 'scene.json')
     this.activitiesFile = join(this.spaceDir, 'activities.json')
+    this.journalFile = join(this.spaceDir, JOURNAL_FILE)
+    this.homeFile = join(this.spaceDir, 'home.json')
     this.revision = 0
     this.writeContext = new AsyncLocalStorage()
+    this.opContext = new AsyncLocalStorage()
   }
 
   /**
@@ -174,12 +179,13 @@ export class MaoqiuStore {
       try {
         if (!(await this._isAvailable())) return this._failure('毛球空间不可用，读取已暂停')
         const warnings = []
-        const items = await this._readRecoverable(this.interestsFile, [], warnings)
+        const all = await this._readRecoverable(this.interestsFile, [], warnings)
+        const items = args._viewer === 'subagent' ? all.filter((x) => !isPrivate(x)) : all
         if (action === 'read') {
           const item = items.find((x) => x.id === args.id)
           return item ? { ok: true, interest: item, version: await fileVersion(this.interestsFile), warnings } : warnings.length ? this._failure('关注点文件不可读，请先修复原文件', { warnings }) : this._failure('关注点不存在')
         }
-        return { ok: true, interests: items, version: await fileVersion(this.interestsFile), warnings }
+        return { ok: true, interests: items, private_count: all.filter(isPrivate).length, version: await fileVersion(this.interestsFile), warnings }
       } catch (error) {
         return this._failure(error.message)
       }
@@ -213,7 +219,10 @@ export class MaoqiuStore {
       try {
         if (!(await this._isAvailable())) return this._failure('毛球空间不可用，读取已暂停')
         const warnings = []
-        return { ok: true, files: await this._spaceFiles(warnings), warnings }
+        const files = await this._annotatedSpaceFiles(warnings)
+        const privateCount = files.filter((x) => x.visibility === 'private').length
+        const shown = args._viewer === 'subagent' ? files.filter((x) => x.visibility !== 'private') : files
+        return { ok: true, files: shown, private_count: privateCount, ...(privateCount ? { curtain: `门帘后有 ${privateCount} 件` } : {}), warnings }
       } catch (error) {
         return this._failure(error.message)
       }
@@ -231,6 +240,7 @@ export class MaoqiuStore {
           warnings.push(this._warning(file, error))
           parsed = { content, meta: null }
         }
+        if (args._viewer === 'subagent' && isPrivate(parsed.meta)) return this._failure('这是私密角的材料，子agent不能读取')
         return { ok: true, path: this._spaceRelative(file), content: parsed.content ?? content, metadata: parsed.meta || null, version: await fileVersion(file), warnings }
       } catch (error) {
         return this._failure(error.code === 'ENOENT' ? '空间文件不存在' : error.message, error.code === 'ENOENT' ? { path: args.path, exists: false, version: 'missing' } : {})
@@ -250,6 +260,28 @@ export class MaoqiuStore {
         return { ok: true, scene: verified, version: await fileVersion(this.sceneFile), verified: true, note: '仅空间设定，不代表现实事实' }
       })
     }
+    if (action === 'corners') {
+      try {
+        if (!(await this._isAvailable())) return this._failure('毛球空间不可用，读取已暂停')
+        const warnings = []
+        const data = await this._readRecoverable(this.homeFile, {}, warnings)
+        return { ok: true, corners: cornerList(data), version: await fileVersion(this.homeFile), warnings }
+      } catch (error) { return this._failure(error.message) }
+    }
+    if (action === 'name_corner') {
+      return this._mutate(async () => {
+        const id = String(args.corner || '')
+        if (!CORNER_IDS.includes(id)) return this._failure(`corner 应为 ${CORNER_IDS.join('/')} 之一`)
+        await expectVersion(this.homeFile, args.expected_version)
+        const data = await this._readJson(this.homeFile, {})
+        const corners = data.corners && typeof data.corners === 'object' && !Array.isArray(data.corners) ? { ...data.corners } : {}
+        const name = this._text(args.name).slice(0, 24)
+        if (name) corners[id] = { name, named_at: this._now(), source: this._source(args.source, 'creation') }
+        else delete corners[id]
+        await this._writeJson(this.homeFile, { ...data, corners })
+        return { ok: true, corners: cornerList({ corners }), version: await fileVersion(this.homeFile) }
+      })
+    }
     if (!['write', 'append'].includes(action)) return this._failure(`未知 space action: ${action}`)
     return this._mutate(async () => {
       const file = await this._safeSpacePath(args.path)
@@ -262,6 +294,7 @@ export class MaoqiuStore {
       const metadata = {
         title: typeof args.title === 'string' ? args.title.trim() : previous?.meta?.title || this._spaceRelative(file),
         source: this._source(args.source, 'creation'),
+        ...this._placement(args, previous?.meta),
         updated_at: this._now(),
       }
       await this._writeMaterial(file, metadata, content)
@@ -505,7 +538,8 @@ export class MaoqiuStore {
     await mkdir(dirname(file), { recursive: true })
     const old = await this._lstatIfExists(file)
     if (old?.isSymbolicLink()) throw new Error('拒绝写入符号链接')
-    if (backup && old?.isFile()) await this._backup(file)
+    const before = old?.isFile() ? await fileVersion(file) : 'missing'
+    const historyId = backup && old?.isFile() ? await this._backup(file) : null
     const temp = `${file}.tmp-${process.pid}-${randomBytes(4).toString('hex')}`
     try {
       await writeFile(temp, text, 'utf8')
@@ -516,7 +550,35 @@ export class MaoqiuStore {
       await rm(temp, { force: true }).catch(() => {})
       throw error
     }
+    if (file !== this.journalFile) await this._journal(file, before, historyId)
   }
+
+  /** Record that a write happened; content itself is never copied here. */
+  async _journal(file, before, historyId) {
+    const op = this.opContext.getStore() || {}
+    const write = this.writeContext.getStore()
+    const fields = {
+      target: relative(this.home, file).split(sep).join('/'),
+      op: before === 'missing' ? 'create' : 'update',
+      before,
+      after: await fileVersion(file),
+      history: historyId,
+      actor: write?.assertCurrent ? 'freetime' : op.actor || (op.tool ? 'tool' : 'direct'),
+      ...(op.tool ? { tool: op.tool } : {}),
+      ...(op.action ? { action: op.action } : {}),
+      ...(op.source_kind ? { source_kind: op.source_kind } : {}),
+      ...(op.visibility ? { visibility: op.visibility } : {}),
+    }
+    // Free-time usage accounting is kept in full but marked so views can fold it.
+    if (fields.target === 'space/free_time.json') fields.bookkeeping = true
+    try { await appendJournal(this.journalFile, fields) }
+    catch (error) { throw new Error(`内容已写入，但变更日志追加失败：${error.message}`) }
+  }
+
+  /** Attach provenance (tool/action/source kind) to the journal entries of fn's writes. */
+  withOp(op, fn) { return this.opContext.run(op, fn) }
+
+  verifyJournal() { return verifyJournal(this.journalFile, this.historyDir) }
 
   async _backup(file) {
     const stamp = `${Date.now()}-${randomBytes(3).toString('hex')}`
@@ -524,6 +586,7 @@ export class MaoqiuStore {
     await this._assertSafePath(this.historyDir)
     await mkdir(this.historyDir, { recursive: true })
     await copyFile(file, target)
+    return relative(this.historyDir, target)
   }
 
   async _writeJson(file, value) {
@@ -748,6 +811,28 @@ export class MaoqiuStore {
     }
   }
 
+  _placement(args, previous = {}) {
+    const visibility = Object.hasOwn(args, 'visibility') ? normalizeVisibility(args.visibility) : previous?.visibility
+    const corner = Object.hasOwn(args, 'corner') ? normalizeCorner(args.corner) : previous?.corner
+    return { ...(visibility === 'private' ? { visibility } : {}), ...(corner ? { corner } : {}) }
+  }
+
+  /** Space files with their optional placement metadata (read-only). */
+  async _annotatedSpaceFiles(warnings = []) {
+    const files = await this._spaceFiles(warnings)
+    for (const entry of files) {
+      try {
+        const parsed = await this._readSpaceParsed(join(this.spaceDir, entry.path), { preview: true })
+        const meta = parsed.meta || {}
+        if (typeof meta.title === 'string') entry.title = meta.title
+        if (isPrivate(meta)) entry.visibility = 'private'
+        if (typeof meta.corner === 'string') entry.corner = meta.corner
+        if (typeof meta.updated_at === 'string') entry.meta_updated_at = meta.updated_at
+      } catch (error) { warnings.push(this._warning(join(this.spaceDir, entry.path), error)) }
+    }
+    return files
+  }
+
   _interestItem(args) {
     const status = args.status || 'active'
     const kind = args.kind || 'interest'
@@ -764,6 +849,7 @@ export class MaoqiuStore {
       kind,
       source: this._source(args.source),
       ...(args.last_activity_id ? { last_activity_id: args.last_activity_id } : {}),
+      ...this._placement(args),
       created_at: args.created_at || this._now(),
       updated_at: this._now(),
     }

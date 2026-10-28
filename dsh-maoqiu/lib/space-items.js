@@ -1,3 +1,4 @@
+import { normalizeCorner, normalizeVisibility } from './home-view.js'
 import { lstat, readFile, readdir } from 'node:fs/promises'
 import { join, extname } from 'node:path'
 
@@ -35,17 +36,24 @@ export async function objects(store, args) {
     const perform = async () => {
       const scene = await store._readJson(store.sceneFile, {})
       const items = objectMap(scene)
-      if (action === 'list') return { ok: true, objects: Object.values(items).filter((item) => args.include_archived || !item.archived) }
+      const visible = (item) => !(args._viewer === 'subagent' && item?.visibility === 'private')
+      if (action === 'list') {
+        const all = Object.values(items).filter((item) => args.include_archived || !item.archived)
+        return { ok: true, objects: all.filter(visible), private_count: all.filter((item) => item.visibility === 'private').length }
+      }
       const id = store._id(store._requiredText(args.id, 'id'))
       const item = Object.hasOwn(items, id) ? items[id] : null
+      if (action === 'read' && !visible(item)) throw new Error('这是私密角的物品，子agent不能读取')
       if (action === 'read') return { ok: true, object: item, version: item ? String(item.version || 1) : 'missing' }
       if (!['upsert', 'archive'].includes(action)) throw new Error('未知 object action')
       checkObjectVersion(item, args.expected_version)
       if (action === 'archive' && !item) throw new Error('物品不存在')
       const patch = args.patch || {}
       if (!patch || typeof patch !== 'object' || Array.isArray(patch)) throw new Error('patch 必须是对象')
-      const allowed = ['name', 'description', 'region', 'position', 'links', 'archived']
-      if (Object.keys(patch).some((key) => !allowed.includes(key))) throw new Error('patch 只允许修改 name/description/region/position/links/archived')
+      const allowed = ['name', 'description', 'region', 'position', 'links', 'archived', 'visibility', 'corner']
+      if (Object.keys(patch).some((key) => !allowed.includes(key))) throw new Error('patch 只允许修改 name/description/region/position/links/archived/visibility/corner')
+      if (Object.hasOwn(patch, 'visibility')) normalizeVisibility(patch.visibility)
+      if (Object.hasOwn(patch, 'corner') && patch.corner !== null) normalizeCorner(patch.corner)
       if (['name', 'description', 'region', 'position'].some((key) => Object.hasOwn(patch, key) && typeof patch[key] !== 'string')) throw new Error('物品文字字段必须是字符串')
       if (Object.hasOwn(patch, 'links') && (!Array.isArray(patch.links) || patch.links.some((value) => typeof value !== 'string'))) throw new Error('links 必须是字符串数组')
       if (Object.hasOwn(patch, 'archived') && typeof patch.archived !== 'boolean') throw new Error('archived 必须为布尔值')

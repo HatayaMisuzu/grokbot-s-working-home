@@ -1,3 +1,22 @@
+# dsh-maoqiu 0.5.0（毛球的小家 · 第一期）
+
+2026-10-28，基于 0.4.0（PR #3）增量演进；旧数据不迁移，新字段缺省时行为不变。
+
+- 角落：现有位置映射成 notes/drafts/collections/window/drawer/things/board/curtain 八个角落（只是视图，不搬数据）。名字由毛球自己起：`maoqiu_space` 新增 `corners`（查看）和 `name_corner`（起名、改名、留空恢复「未命名 · …」占位），保存在 `space/home.json`，带 expected_version，改名记入变更日志。
+- 可选字段 `visibility`（open/private）和 `corner`：用于材料（write/append）、关注点（save/update）、物品（patch）。之后的写入不带这两个字段时保留原值。
+- 私密角（门帘不是锁）：private 条目不自动召回，`maoqiu_recall` 也不返回；`list` 带 `private_count` 和「门帘后有 N 件」；主 agent 和主人 `read` 照常拿到原文；子 agent 看不到也读不到（由运行时判断，模型传入的 `_viewer` 无效）。
+- 只追加的变更日志 `space/journal.jsonl`：每次经 store 写入记一条（目标、create/update、前后版本、`.history` 快照 id、工具、动作、来源类型、actor），不复制内容；SHA-256 哈希链。CLI `verify` 检查哈希链、序号、开头，并交叉核对 `.history`。只能发现改动，不能阻止；末尾整段截掉需要和之前记下的 head 对照。
+- 热度和落灰在读取时由已有时间戳推算（14 天内常翻、45 天以上落灰），不写盘。
+- CLI：`view` 生成离线静态 HTML（零依赖、无脚本、CSP `default-src 'none'`、内联 SVG、门帘默认展开、拒绝写进空间目录）；`view --text`、`view --md`；`show <路径>` 打印原文；`verify`。
+- 系统说明补充：角落自己起名，私密可以有、隐瞒不可以。
+- 自在时间（Ruby 2026-10-28 决定）：
+  - 只由 Ruby 随时口头安排，没有任何定时或自动开始。
+  - 能听懂自然说法，包括中文数字、句首带别的话、半小时、一刻钟；没说时长时默认 `defaultMinutes`=20 分钟，返回 `granted` 和 `told`，告诉 Ruby 实际时长。只认运行时标记为主人本人的消息；且须是对毛球明确给出的自在时间，Ruby 自述自己的玩/安排不算授权。
+  - 取消每日上限和按日重置，不再严格限制工具次数；改为单次软上限 `softMinutes`=120、`softSteps`=60、`softTokens`=600000。超过时停下问 Ruby 是否继续，状态为 paused/soft-limit、needs_confirmation；Ruby 说继续后从当时用量重新计算。
+  - 用量照常记录；free_time.json 的计费写入在变更日志里带 `bookkeeping: true`，视图里默认折叠。
+  - checkpoint 和「上次停在哪」保留。
+  - 旧配置键：decisions/tokens 当作 softSteps/softTokens，seconds/tools/dailyDecisions/dailyTokens 被忽略。
+
 # dsh-maoqiu 0.4.0
 
 2026-10-28，合并 `@local/dsh-maoqiu-mode`，适配 DSH 0.2.1-rc.4（engines 仍为 `>=0.2.1-rc.3 <0.3.0-0`）。

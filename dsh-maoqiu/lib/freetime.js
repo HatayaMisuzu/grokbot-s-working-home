@@ -4,20 +4,86 @@ import { runtimeIdentity, operationKind } from './context.js'
 
 export const FREE_SOURCE = 'maoqiu-freetime'
 export const FREE_TOOLS = ['maoqiu_recall', 'maoqiu_space', 'maoqiu_interest', 'maoqiu_activity', 'maoqiu_object', 'maoqiu_freetime']
-const defaults = { seconds: 300, decisions: 6, tools: 24, tokens: 120000, dailyTokens: 240000, dailyDecisions: 18, outputTokens: 2048 }
+// Ruby approves each opportunity in her own words. There is no daily cap and
+// no strict tool count; soft limits only pause the run and ask her.
+export const FREE_DEFAULTS = { defaultMinutes: 20, softMinutes: 120, softSteps: 60, softTokens: 600000, outputTokens: 2048 }
+// Pre-0.5 keys: decisions/tokens map onto softSteps/softTokens; seconds, tools,
+// dailyTokens and dailyDecisions are ignored.
+const LEGACY = { decisions: 'softSteps', tokens: 'softTokens' }
 const textOf = (message) => (message?.content || []).filter((part) => part.type === 'text').map((part) => part.text).join('\n')
 const human = (message) => message?.role === 'user' && message?.source?.kind === 'user'
 const counts = () => ({ decisions: 0, tools: 0, tokens: 0, estimated_tokens: 0 })
+const positive = (value) => Number.isFinite(value) && value > 0
 
-// Only a fresh, direct user command arms a run. Quoted material, the recall
-// context, an old session message and synthetic continuations cannot arm it.
+export function freeTimeLimits(config = {}) {
+  const limits = { ...FREE_DEFAULTS }
+  for (const [old, key] of Object.entries(LEGACY)) if (positive(config[old]) && !positive(config[key])) limits[key] = Math.floor(config[old])
+  for (const key of Object.keys(FREE_DEFAULTS)) if (positive(config[key])) limits[key] = key === 'defaultMinutes' || key === 'softMinutes' ? config[key] : Math.floor(config[key])
+  return limits
+}
+
+const DIGITS = { 零: 0, 〇: 0, 一: 1, 两: 2, 二: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 }
+function chineseNumber(raw) {
+  if (/^\d+(?:\.\d+)?$/.test(raw)) return Number(raw)
+  if (!/^[零〇一两二三四五六七八九十百]+$/.test(raw)) return NaN
+  let total = 0, digit = 0
+  for (const ch of raw) {
+    if (ch === '百') { total += (digit || 1) * 100; digit = 0 }
+    else if (ch === '十') { total += (digit || 1) * 10; digit = 0 }
+    else digit = DIGITS[ch]
+  }
+  return total + digit
+}
+const NUM = '[\\d.]+|[零〇一两二三四五六七八九十百]+'
+/** Parse a spoken duration such as 半小时、一个半小时、一刻钟、十分钟、90秒. Returns seconds or undefined. */
+export function parseDuration(text) {
+  if (/一刻钟/.test(text)) return 900
+  let m = text.match(new RegExp(`(${NUM})\\s*个?半\\s*(?:小时|钟头)`))
+  if (m && Number.isFinite(chineseNumber(m[1]))) return (chineseNumber(m[1]) + 0.5) * 3600
+  if (/半\s*个?\s*(?:小时|钟头)/.test(text)) return 1800
+  m = text.match(new RegExp(`(${NUM})\\s*(?:个)?\\s*(小时|钟头|分钟|分|秒钟|秒)`))
+  if (!m) return undefined
+  const n = chineseNumber(m[1])
+  if (!positive(n)) return undefined
+  return Math.round(n * (/小时|钟头/.test(m[2]) ? 3600 : /分/.test(m[2]) ? 60 : 1))
+}
+
+const NEGATION = /不要|别|不用|不许|不准|停止|暂停|结束|关闭|算了/
+// Play / free-time cues aimed at 毛球. `(?<!出)去玩` avoids matching 出去玩.
+const TRIGGER = /自由活动|自在时间|自由探索|随便玩|自己玩|(?<!出)去玩|玩一?会儿?|玩一下|继续玩|接着玩|再玩/
+const TO_MAOQIU = /给你|让你|你可以|你去|你自己|毛球/
+// Ruby describing her own outing or play — not a grant to 毛球.
+const SELF_PLAN = /我(?:想|要|也想|也要|自己)?(?:去|出去)?玩|我玩了|我去玩|我出去玩/
+/**
+ * Only a fresh, direct message from Ruby (runtime source kind 'user') arms a
+ * run. Quoted or questioning mentions, synthetic continuations, her own plans
+ * ("我去玩会儿"), and anything the model claims about itself are not grants.
+ */
 export function freeTimeGrant(message) {
   if (!human(message) || !message.id) return null
   const text = textOf(message).trim()
-  if (/不要|别|停止|暂停|结束|关闭/.test(text)) return null
-  if (!/^(?:毛球[，,:：\s]*)?(?:你)?(?:去|可以|开始|继续|接着|给你)?\s*(?:(?:\d+(?:\.\d+)?\s*(?:秒|分钟|分))\s*)?(?:自由活动|自在时间|玩一会|自由探索)/.test(text)) return null
-  const duration = text.match(/(\d+(?:\.\d+)?)\s*(秒|分钟|分)/)
-  return { id: message.id, seconds: duration ? Number(duration[1]) * (duration[2] === '秒' ? 1 : 60) : undefined }
+  if (!text || text.length > 80 || text.includes('\n')) return null
+  if (NEGATION.test(text) || /[“”"「」『』]/.test(text) || /[吗？?]\s*$|什么意思|是什么/.test(text)) return null
+  // "周末我想出去玩两小时" / "我去玩会儿游戏" / "我玩了半小时" are not grants.
+  if (SELF_PLAN.test(text) && !TO_MAOQIU.test(text)) return null
+  const seconds = parseDuration(text)
+  // "给你半小时" counts without 玩. Bare "玩"+duration needs a to-毛球 cue or
+  // an imperative ending ("玩一刻钟吧"); chat like "周末想出去玩两小时" does not.
+  const directedPlay = /玩/.test(text) && /(?:吧|呀|啦|哦)\s*[!！。.]?\s*$/.test(text)
+  if (!TRIGGER.test(text) && !(seconds && (TO_MAOQIU.test(text) || directedPlay))) return null
+  return { id: message.id, seconds, said: text.slice(0, 80) }
+}
+
+
+const ASK_RUBY = '自在时间到了软上限（防失控），已暂停工具。请不要再调用工具：用一两句如实告诉主人用了多少（步数、token、时长），问要不要继续；主人说继续才 resume。'
+
+/** Which soft limit, if any, this run has crossed since Ruby last said to go on. */
+export function softLimitHit(run, limits, now = Date.now(), reserve = 0) {
+  const from = run.soft_from || { decisions: 0, tokens: 0, at: run.created_at }
+  if (run.usage.decisions - from.decisions >= limits.softSteps) return 'steps'
+  if (run.usage.tokens - from.tokens + reserve > limits.softTokens) return 'tokens'
+  if (now - Date.parse(from.at) >= limits.softMinutes * 60000) return 'minutes'
+  return null
 }
 
 export class FreeTime {
@@ -25,7 +91,7 @@ export class FreeTime {
     this.ctx = ctx
     this.store = store
     this.file = join(store.spaceDir, 'free_time.json')
-    this.limits = Object.fromEntries(Object.entries(defaults).map(([key, value]) => [key, Number.isFinite(config[key]) && config[key] > 0 ? Math.floor(config[key]) : value]))
+    this.limits = freeTimeLimits(config)
     this.enabled = config.enabled !== false
     this.eligible = eligible
     this.grants = new WeakMap()
@@ -74,7 +140,8 @@ export class FreeTime {
     try {
       if (!(await this.store._isAvailable())) return this.store._failure('毛球空间不可用')
       const data = await this.store._readJson(this.file, { runs: [], day: null })
-      return { ok: true, enabled: this.enabled, automatic: false, runs: data.runs.slice(-12).reverse(), day: data.day, limits: this.limits }
+      const last = data.runs.at(-1)
+      return { ok: true, enabled: this.enabled, automatic: false, daily_limit: false, runs: data.runs.slice(-12).reverse(), limits: this.limits, ...(last?.needs_confirmation ? { waiting_for_ruby: { id: last.id, usage: last.usage, note: '上次到了软上限暂停；告诉主人用量并问是否继续，主人说继续才 resume' } } : {}) }
     } catch (error) { return this.store._failure(error.message) }
   }
 
@@ -153,37 +220,40 @@ export class FreeTime {
     if (typeof tools?.restrict !== 'function') return this.store._failure('宿主缺少 agent.ctx.tools.restrict，不能可靠限制自在时间工具')
     const dispose = tools.restrict({ allow: FREE_TOOLS })
     const now = Date.now()
+    let granted = null
     const result = await this.update((data) => {
       if (data.runs.some((item) => item.authorization_id === grant.id || item.resume_authorizations?.includes(grant.id))) throw new Error('这次用户授权已使用；不会重新创建预算')
-      if (!data.day || data.day.date !== new Date(now).toISOString().slice(0, 10)) data.day = { date: new Date(now).toISOString().slice(0, 10), ...counts() }
-      if (data.day.decisions >= this.limits.dailyDecisions || data.day.tokens >= this.limits.dailyTokens) throw new Error('当天自在时间预算已用尽')
       let run
       if (action === 'resume') {
         run = data.runs.find((item) => item.id === args.id)
         if (!run || run.session !== agent.session.id || run.status !== 'paused') throw new Error('只能恢复本会话已暂停的机会')
-        if (run.stop_reason === 'restored' || now >= Date.parse(run.expires_at)) throw new Error('原机会已到期或被恢复操作作废；请获准新机会后 start，沿用检查点')
-        if (run.usage.decisions >= run.limits.decisions || run.usage.tools >= run.limits.tools || run.usage.tokens >= run.limits.tokens) throw new Error('原机会预算已用尽，resume 不重置预算')
+        if (run.stop_reason === 'restored') throw new Error('原机会已被恢复操作作废；请获准新机会后 start，沿用检查点')
+        // Ruby said to go on: a new duration extends the window, and the soft
+        // limits count again from here. Without a new duration an expired window stays closed.
+        if (grant.seconds) run.expires_at = new Date(now + grant.seconds * 1000).toISOString()
+        if (now >= Date.parse(run.expires_at)) throw new Error('原机会已到期；请主人说新的时长后 resume，或获准新机会后 start，沿用检查点')
+        if (run.needs_confirmation) run.soft_from = { decisions: run.usage.decisions, tokens: run.usage.tokens, at: new Date(now).toISOString() }
+        run.needs_confirmation = false
         run.resume_authorizations = [...(run.resume_authorizations || []), grant.id]
       } else {
-        const seconds = Math.min(this.limits.seconds, grant.seconds ?? this.limits.seconds, Number(args.seconds) > 0 ? Number(args.seconds) : this.limits.seconds)
+        const approved = grant.seconds ?? Math.round(this.limits.defaultMinutes * 60)
+        const seconds = Math.min(approved, Number(args.seconds) > 0 ? Number(args.seconds) : approved)
+        granted = { said: grant.said, seconds, minutes: Math.round(seconds / 6) / 10, defaulted: !grant.seconds, shortened: seconds < approved }
         const previous = data.runs.findLast((item) => item.checkpoint)
-        run = { id: randomUUID(), session: agent.session.id, authorization_id: grant.id, created_at: new Date(now).toISOString(), expires_at: new Date(now + seconds * 1000).toISOString(), limits: { ...this.limits }, usage: counts(), checkpoint: previous?.checkpoint || null, previous_run: previous?.id || null, artifacts: [], last_step: null, pending: null, failures: 0 }
+        run = { id: randomUUID(), session: agent.session.id, authorization_id: grant.id, created_at: new Date(now).toISOString(), expires_at: new Date(now + seconds * 1000).toISOString(), limits: { ...this.limits }, usage: counts(), checkpoint: previous?.checkpoint || null, previous_run: previous?.id || null, granted, artifacts: [], last_step: null, pending: null, failures: 0 }
         data.runs.push(run)
         data.runs = data.runs.slice(-100)
       }
       run.status = 'running'
       run.stop_reason = null
       run.usage.decisions += 1
-      data.day.decisions += 1
       run.usage.tools += 1
-      data.day.tools += 1
       const initialUsage = this.lastUsage.get(agent.session)
       const initialTokens = initialUsage?.totalTokens ?? (initialUsage ? initialUsage.inputTokens + initialUsage.outputTokens : null)
       const estimate = !Number.isFinite(initialTokens)
       const tokens = estimate ? Buffer.byteLength(JSON.stringify(agent.session.deriveMessages())) + 16384 : Math.max(0, initialTokens)
       run.usage.tokens += tokens
-      data.day.tokens += tokens
-      if (estimate) { run.usage.estimated_tokens += tokens; data.day.estimated_tokens += tokens }
+      if (estimate) run.usage.estimated_tokens += tokens
       return { ok: true, run }
     })
     if (!result.ok) { dispose(); return result }
@@ -195,24 +265,35 @@ export class FreeTime {
     this.owners.set(agent.session, state)
     state.timer = setTimeout(() => void this.stop('window-expired', 'paused', true), Math.max(1, Date.parse(state.run.expires_at) - Date.now()))
     state.timer.unref?.()
-    return { ...result, note: '可连续选择、阅读或修改，也可立即 finish；先读最新内容并带 expected_version。无需凑满窗口或汇报。未知 pending 先核对，不能盲目重放。' }
+    const told = granted
+      ? `实际时长 ${granted.minutes} 分钟${granted.defaulted ? `（主人没说具体时长，用默认 ${this.limits.defaultMinutes} 分钟）` : ''}${granted.shortened ? '（按你的 seconds 缩短）' : ''}。开始前用一句话如实告诉主人。`
+      : `已续上，窗口到 ${result.run.expires_at}。`
+    return { ...result, granted, told, note: told + '可连续选择、阅读或修改，也可立即 finish；先读最新内容并带 expected_version。无需凑满窗口或汇报。未知 pending 先核对，不能盲目重放。' }
   }
 
   async charge(state, field, amount, estimated = false) {
     const result = await this.update((data) => {
       const run = data.runs.find((item) => item.id === state.run.id)
       if (!run) throw new Error('自在时间记录已不存在')
-      const today = new Date().toISOString().slice(0, 10)
-      if (!data.day || data.day.date !== today) data.day = { date: today, ...counts() }
-      if (field === 'tools' && run.usage.tools >= run.limits.tools) throw new Error('自在时间工具预算已用尽')
       run.usage[field] = Math.max(0, run.usage[field] + amount)
-      data.day[field] = Math.max(0, data.day[field] + amount)
-      if (estimated) { run.usage.estimated_tokens += amount; data.day.estimated_tokens += amount }
+      if (estimated) run.usage.estimated_tokens += amount
       state.run = { ...run, status: state.stopping ? state.run.status : run.status, stop_reason: state.stopping ? state.run.stop_reason : run.stop_reason }
-      return { ok: true, run, day: data.day }
+      return { ok: true, run }
     })
-    if (!result.ok) { await this.stop(/工具预算/.test(result.error) ? 'tool-budget' : 'storage-error', 'paused', true); throw new Error(result.error) }
+    if (!result.ok) { await this.stop('storage-error', 'paused', true); throw new Error(result.error) }
     return result
+  }
+
+  async markAsking(state, hit) {
+    state.asking = hit
+    state.askRequests = 0
+    const result = await this.update((data) => {
+      const run = data.runs.find((item) => item.id === state.run.id)
+      if (run) Object.assign(run, { needs_confirmation: true, soft_hit: hit })
+      if (run) state.run = { ...run, status: state.run.status, stop_reason: state.run.stop_reason }
+      return { ok: true }
+    })
+    if (!result.ok) this.ctx.logger?.warn?.(`maoqiu: 软上限记录保存失败：${result.error}`)
   }
 
   async drive(agent) {
@@ -227,8 +308,11 @@ export class FreeTime {
       if (state.run.failures >= 2) { await this.stop('repeated-tool-error'); return }
       const hasHuman = [...(agent.inbox?.nextTurn || []), ...(agent.inbox?.nextStep || [])].some(human)
       if (hasHuman) { await this.stop('user-arrived'); return }
+      if (state.asking) { await this.stop('soft-limit'); return }
+      const hit = softLimitHit(state.run, this.limits)
+      if (hit) await this.markAsking(state, hit)
       const id = randomUUID()
-      const message = { id, role: 'user', source: { kind: FREE_SOURCE }, content: [{ type: 'text', text: `自在时间仍在有效窗口内。这是插件续接，不是用户新指令。读取 run ${state.run.id} 的最新检查点和实际产物，选择下一小步或 finish；可以不产出，不必给用户写汇报。${state.run.pending ? '上次工具结果未知，先读取目标核对，禁止盲目重放。' : ''}` }] }
+      const message = { id, role: 'user', source: { kind: FREE_SOURCE }, content: [{ type: 'text', text: state.asking ? ASK_RUBY : `自在时间仍在有效窗口内。这是插件续接，不是用户新指令。读取 run ${state.run.id} 的最新检查点和实际产物，选择下一小步或 finish；可以不产出，不必给用户写汇报。${state.run.pending ? '上次工具结果未知，先读取目标核对，禁止盲目重放。' : ''}` }] }
       state.queued = id
       agent.followup(message)
     } catch (error) {
@@ -283,13 +367,14 @@ export class FreeTime {
       const state = this.guards.get(agent)
       if (!state) return next()
       this.assertCurrent(state)
-      const usage = state.run.usage
-      const status = await this.status()
       const inputBound = Buffer.byteLength(JSON.stringify(agent.session.deriveMessages())) + Buffer.byteLength(JSON.stringify(agent.ctx.tools.schemas(agent))) + 8192
       const reserve = inputBound + state.run.limits.outputTokens
-      if (usage.decisions >= state.run.limits.decisions || usage.tokens + reserve > state.run.limits.tokens || status.day.decisions >= this.limits.dailyDecisions || status.day.tokens + reserve > this.limits.dailyTokens) {
-        await this.stop('budget-exhausted')
-        throw new Error('自在时间预算已到上限，已保存接续点')
+      if (state.asking) {
+        // One or two plain replies to ask Ruby; never a quiet runaway.
+        if (++state.askRequests > 2) { await this.stop('soft-limit'); throw new Error(ASK_RUBY) }
+      } else {
+        const hit = softLimitHit(state.run, this.limits, Date.now(), reserve)
+        if (hit) await this.markAsking(state, hit)
       }
       await this.charge(state, 'decisions', 1)
       // Charge before dispatch, including failed/aborted attempts and history.
@@ -312,7 +397,6 @@ export class FreeTime {
           this.accounting = this.accounting.then(() => this.charge(state, 'tokens', actual - reserved)).then(() => this.update((data) => {
             const run = data.runs.find((item) => item.id === state.run.id)
             run.usage.estimated_tokens = Math.max(0, run.usage.estimated_tokens - reserved)
-            data.day.estimated_tokens = Math.max(0, data.day.estimated_tokens - reserved)
             state.run = run
             return { ok: true }
           }))
@@ -330,6 +414,7 @@ export class FreeTime {
       // PTC's reserved transport exposes only the scoped end-capability tools;
       // its nested calls still pass the same registry restrictions and hook.
       if (execution.name !== 'run_code' && !FREE_TOOLS.includes(execution.name)) throw new Error('自在时间只允许毛球空间工具')
+      if (state.asking && execution.name !== 'maoqiu_freetime') throw new Error(ASK_RUBY)
       const result = await next()
       if (result?.isError && this.active === state) {
         await this.update((data) => {
@@ -376,7 +461,7 @@ export class FreeTime {
     const state = this.guards.get(execution.agent)
     if (!state) return this.store.withWriteContext({ signal: execution.signal }, body)
     this.assertCurrent(state)
-    if (state.run.usage.tools >= state.run.limits.tools) { await this.stop('tool-budget'); throw new Error('自在时间工具预算已用尽') }
+    if (state.asking) throw new Error(ASK_RUBY)
     const write = operationKind(method, args) === 'write'
     if (write) {
       if (!['space', 'interest', 'activity', 'object'].includes(method)) throw new Error('自在时间不能执行这个写入操作')
