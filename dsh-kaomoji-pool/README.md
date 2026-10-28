@@ -1,8 +1,8 @@
-# DSH 自由字符画与颜文字 · 2.0.0
+# DSH 自由字符画与颜文字 · 2.0.1
 
 让 DSH 根据当前交流**自己构图、自己绘制，再继续修改**。字符画部分不提供角色成品库，不通过题材名返回现成图，也不接入另一个模型。保留原来的 738 条颜文字作为辅助能力。
 
-包名仍是 `@local/kaomoji-pool`，bundle 行 id 仍是 `kaomoji-pool`。在 DSH 0.2.1-rc.3 的真实 Node Host 上完成过隔离集成验收，详见 `VALIDATION.md`。
+包名仍是 `@local/kaomoji-pool`，bundle 行 id 仍是 `kaomoji-pool`。在 DSH 0.2.1-rc.4 的真实 Node Host 上完成过隔离集成验收，详见 `VALIDATION.md`。
 
 ## 能力如何组成
 
@@ -97,7 +97,7 @@
 
 毛球空间是场景和存储工具，不是独立的休闲模式信号。工作会话仅仅读取了空间文件，不会因此启用字符画。遇到工作或严肃话题，毛球里的短提示也要求自然停止装饰。
 
-支持 DSH rc.3 在首轮开始前更换 preset 时，移除或恢复字符画贡献。首轮后的 preset 切换限制由 DSH 原生规则决定。若同一进程此前用过毛球，Node 已导入模块可能仍驻留缓存；这里实现的是工作请求和首次导入减负，不保证进程内存自动归零。
+支持 DSH rc.4（已实测） 在首轮开始前更换 preset 时，移除或恢复字符画贡献。首轮后的 preset 切换限制由 DSH 原生规则决定。若同一进程此前用过毛球，Node 已导入模块可能仍驻留缓存；这里实现的是工作请求和首次导入减负，不保证进程内存自动归零。
 
 ### 配置
 
@@ -136,6 +136,12 @@ profile `cordis.patch.yml` 按稳定行 id 覆盖：
 | `defaultCount` / `maxCount` / `avoidRecent` | 原颜文字工具参数，默认 8 / 24 / 24 |
 
 旧的 `inlineCategories` / `inlinePerCategory` 不再用于主入口的提示段：2.0 不把分类示例逐类塞进上下文。颜文字取样接口及语料保持兼容。不要同时在 profile 用 auto、又在毛球 preset 重复添加 scoped 行。
+
+## 固定节奏与成本
+
+每幅画按"draw 1 次 → check 1 次 → 最多 edit 2 次 → 交付"进行。`draw`/`check`/`edit` 的返回带 `pace`（按 agent 计数的 draws、redraws、checks、edits 和下一步提示）；draw 的提示要求交付前先调用 `check(elements=[...])` 核对要素。工具只提示，不会强行拦截调用。
+
+插件本身不改模型配置。想压低思考开销，可以在 profile 的配置覆盖里给 `@deepseek-ai/dsh-agent-default-model` 设 `reasoningEffort: low`（DeepSeek 适配器接受 `off | low | high | max`）。dsh 0.2.1-rc.4 的配置 schema 里没有限制 agent 轮数的字段。
 
 ## 安装与更新
 

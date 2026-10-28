@@ -1,3 +1,16 @@
+# 2.0.1 升级验证（2026-10-28）
+
+| 验证 | 实际结果 |
+|---|---|
+| `node --test` | 28 项通过，失败 0（新增 `test/kaomoji-rules.test.mjs` 共 6 项） |
+| `node scripts/check.mjs` | 18 个 JS 文件语法检查通过 |
+| `node scripts/validate-pool.mjs` | 738 条，违规 0；彩色 Emoji 检测改为 Extended_Pictographic / Emoji_Presentation / VS16 / keycap / ZWJ / 旗帜 / 肤色 |
+| `node scripts/smoke.mjs` | 通过 |
+| `node scripts/dsh-smoke.mjs` | DSH 0.2.1-rc.4 真实 Host 通过（scripted model），无版本豁免 |
+| `dsh plugin add`（临时 DSH_HOME，rc.4） | exit 0；engines `>=0.2.1-rc.4 <0.3.0-0` |
+
+rc.3 和更低版本没有在本次升级中测试，engines 只按实测的 rc.4 声明。
+
 # 2.0.0 验证记录
 
 日期：2026-10-26。验证对象为本目录最终的自由字符画实现，不以原版测试替代新增功能验收。

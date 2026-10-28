@@ -19,7 +19,7 @@ await mkdir(workspace, { recursive: true })
 await writeFile(join(workspace, 'AGENTS.md'), 'Temporary isolated character-art transport test. Follow only the test messages.\n')
 const pluginDir = join(modules, '@local', 'kaomoji-pool')
 await cp(pkg, pluginDir, { recursive: true, filter: source => !relative(pkg, source).split(/[\\/]/).some(part => part === 'node_modules' || part.startsWith('.')) })
-const dependencies = { '@local/kaomoji-pool': '2.0.0', 'text-art-smoke-model': '1.0.0', 'text-art-smoke-probe': '1.0.0' }
+const dependencies = { '@local/kaomoji-pool': '2.0.1', 'text-art-smoke-model': '1.0.0', 'text-art-smoke-probe': '1.0.0' }
 const bundles = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', '@local/kaomoji-pool']
 for (const name of ['model', 'probe']) {
   const dir = join(modules, 'text-art-smoke-' + name)
