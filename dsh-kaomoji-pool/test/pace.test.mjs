@@ -12,8 +12,11 @@ test('draw result reminds to call check(elements=...) before delivering', () => 
   const drawn = engine.run({ action: 'draw', text: '(=^.^=)' }, execution)
   assert.equal(drawn.pace.draws, 1)
   assert.match(drawn.pace.hint, /交付前先调用 check\(text=.*elements=\[/)
+  assert.match(drawn.pace.hint, /禁止用 bash、python/)
+  assert.match(drawn.pace.hint, /只用 text_art/)
   const text = createArtTool({}).output.render({}, drawn)[0].text
   assert.match(text, /下一步：.*check\(.*elements=/)
+  assert.match(text, /禁止用 bash、python/)
 })
 
 test('redraw before any check is counted and discouraged', () => {
@@ -56,6 +59,20 @@ test('skill fixes the rhythm and still has no finished demo drawings', async () 
   assert.match(rhythm, /check 1 次/)
   assert.match(rhythm, /最多 edit 2 次/)
   assert.match(rhythm, /交付/)
+  assert.match(rhythm, /禁止用 bash、python/)
+  assert.match(skill, /字符画只用 `text_art`/)
+  assert.match(skill, /禁止用 bash、python/)
   const demos = skill.split('## 构造示范')[1].split('\n## ')[0]
   assert.doesNotMatch(demos, /```/)
+})
+
+test('check and edit hints also ban bash/python', () => {
+  const engine = createEngine({})
+  const { execution } = agent()
+  engine.run({ action: 'draw', text: 'a' }, execution)
+  const checked = engine.run({ action: 'check', text: 'a', elements: ['x'] }, execution)
+  assert.match(checked.pace.hint, /禁止用 bash、python/)
+  const edited = engine.run({ action: 'edit', text: 'ab' }, execution)
+  assert.match(edited.pace.hint, /禁止用 bash、python/)
+  assert.match(createArtTool({}).output.render({}, edited)[0].text, /禁止用 bash、python/)
 })
