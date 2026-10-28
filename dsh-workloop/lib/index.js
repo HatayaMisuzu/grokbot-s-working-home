@@ -16,6 +16,7 @@ import { WorkloopStore } from './store.js'
 import { buildTools, isReadOnly } from './tools.js'
 import { defaultWorkHome } from './util.js'
 import { guidanceText } from './guidance.js'
+import { DEFAULT_CAPTURE_TOOLS, HostCaptureLog, captureFrom } from './host.js'
 
 export const name = 'workloop'
 export const inject = ['tools', 'systemPrompt']
@@ -37,6 +38,10 @@ function readConfig(raw) {
     activeContext: config.activeContext !== false,
     activeContextMax: integer(config.activeContextMax, 700, 200, 2000),
     subagentAccess,
+    hostEvidence: config.hostEvidence !== false,
+    captureTools: Array.isArray(config.captureTools) && config.captureTools.length > 0
+      ? config.captureTools.map(String)
+      : DEFAULT_CAPTURE_TOOLS,
     maxNotices: integer(config.maxNotices, 50, 10, 200),
     noticeDedupeSeconds: integer(config.noticeDedupeSeconds, 1800, 60, 86_400),
   }
@@ -151,6 +156,22 @@ export function apply(ctx, rawConfig) {
     dedupeSeconds: config.noticeDedupeSeconds,
   })
 
+  const captures = new HostCaptureLog()
+
+  if (config.hostEvidence) {
+    // Observe real shell results. Always delegate unchanged: this plugin
+    // records, it never rewrites or blocks another tool's result.
+    ctx.on('tools/post-execute', async (exec, result, next) => {
+      try {
+        const capture = captureFrom(exec, result, config.captureTools)
+        if (capture !== null) captures.add(runtimeIdentity(exec.agent).ownerSession, capture)
+      } catch {
+        // Capture is best-effort; never break the host pipeline.
+      }
+      return next()
+    })
+  }
+
   const enrich = (args, execution, tool) => {
     execution?.signal?.throwIfAborted()
     const agent = execution?.agent
@@ -163,11 +184,19 @@ export function apply(ctx, rawConfig) {
       if (tool === 'work_learn') throw new Error('经验候选只能由主会话提出：子 agent 不写长期材料')
       throw new Error('子 agent 不能修改合同、Claim、动作或完成判定：交由父会话处理')
     }
-    return {
-      ...args,
-      workspaceRoot: workspaceOf(agent),
-      actor: runtimeIdentity(agent),
+    const actor = runtimeIdentity(agent)
+    const enriched = { ...args, workspaceRoot: workspaceOf(agent), actor }
+    if (tool === 'work_evidence') {
+      enriched.hostCaptures = () => captures.list(actor.ownerSession)
+      if (action === 'record' && config.hostEvidence) {
+        const observed = args.observed && typeof args.observed === 'object' ? args.observed : {}
+        enriched.hostCapture = captures.resolve(actor.ownerSession, {
+          captureId: observed.captureId,
+          command: observed.command,
+        })
+      }
     }
+    return enriched
   }
 
   if (config.tools) {
@@ -226,5 +255,5 @@ export function apply(ctx, rawConfig) {
     )
   }
 
-  return { store, config }
+  return { store, config, captures }
 }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { WorkloopStore } from '../lib/store.js'
 import { computeVerdict } from '../lib/verdict.js'
-import { tempDir, makeWorkspace } from './helpers.js'
+import { tempDir, makeWorkspace, hostCaptureFor } from './helpers.js'
 
 function newStore() {
   return new WorkloopStore(join(tempDir(), 'work'), { maxNotices: 20, dedupeSeconds: 60 })
@@ -41,6 +41,7 @@ test('必过 Claim 全过且无限制 → PASS，finalize 收尾', async () => {
     subjects: ['src/a.py'],
     observed: { command: 'pytest -q', exitCode: 0, tests: 3, summary: '3 passed', declaredEffects: true },
     assurance: { backend: 'host', isolated: false },
+    hostCapture: hostCaptureFor('pytest -q'),
   })
 
   const preview = await store.preview(runId)

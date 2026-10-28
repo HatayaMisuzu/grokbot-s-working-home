@@ -59,6 +59,7 @@ const observedSchema = {
     independent: { type: 'boolean', description: '复核是否来自独立上下文；声明而已也要如实写' },
     tests: { type: 'integer', description: '实际执行的测试数量；0 不算通过' },
     declaredEffects: { type: 'boolean', description: '命令副作用是否已完整声明' },
+    captureId: string('宿主采集记录 ID（HX-n，见 work_evidence captures）；省略时按 command 匹配本会话最近一次同名命令'),
   },
 }
 
@@ -97,7 +98,7 @@ function jsonOutput() {
   }
 }
 
-const READ_ONLY_ACTIONS = new Set(['show', 'list', 'preview', 'verify'])
+const READ_ONLY_ACTIONS = new Set(['show', 'list', 'preview', 'verify', 'captures'])
 
 /** True when a call cannot mutate run state. */
 export function isReadOnly(tool, args) {
@@ -376,13 +377,13 @@ export function buildTools(store, { enrich }) {
   tools.push({
     name: 'work_evidence',
     description:
-      '记录/查看证据。Oracle 决定比较什么：file_exists/file_contains/file_equals/target_state/tests_pass/command_output/artifact_exists/document_rubric/citation_trace/user_acceptance/review_record。声明质量只是上限，插件只会下调：占位命令、非零退出码、0 个测试或 inconclusive 不能支撑通过；证据对象必须落在 Claim subjects 内，缺对象指纹或缺观察摘要最高 Q1，Q3 需独立来源。复核用 oracle=review_record（claimId 省略）。',
+      '记录/查看证据。Oracle 决定比较什么：file_exists/file_contains/file_equals/target_state/tests_pass/command_output/artifact_exists/document_rubric/citation_trace/user_acceptance/review_record。声明质量只是上限，插件只会下调：占位命令、非零退出码、0 个测试或 inconclusive 不能支撑通过；证据对象必须落在 Claim subjects 内，缺对象指纹或缺观察摘要最高 Q1，Q3 需独立来源。命令型证据（tests_pass/command_output）的命令、退出码、测试数取自宿主 tools/post-execute 采集（按 command 或 observed.captureId 匹配）；没匹配到就是模型自报，最高 Q1。复核用 oracle=review_record（claimId 省略）。',
     parameters: {
       type: 'object',
       additionalProperties: false,
       required: ['action'],
       properties: {
-        action: enumeration(['record', 'list', 'verify'], '操作'),
+        action: enumeration(['record', 'list', 'verify', 'captures'], '操作；captures 列出宿主采集到的命令结果'),
         runId: string('Run ID；省略时使用当前工作区最新的 active Run'),
         claimId: string('证据要支撑的 Claim；record 必填（review_record 除外）'),
         oracle: enumeration(
@@ -416,6 +417,14 @@ export function buildTools(store, { enrich }) {
     async execute(args, context) {
       const input = await enrich(args ?? {}, context, 'work_evidence')
       const action = String(input.action ?? '')
+      if (action === 'captures') {
+        const items = typeof input.hostCaptures === 'function' ? input.hostCaptures() : []
+        const summary = items.map(({ stdoutTail, stderrTail, ...rest }) => rest)
+        return {
+          captures: summary,
+          text: summary.map((item) => `${item.id}｜exit ${item.exitCode}｜tests ${item.tests ?? '?'}｜${item.command}`).join('\n') || '本会话还没有宿主采集的命令结果。',
+        }
+      }
       const runId = resolveRunId(store, input.runId, input.workspaceRoot, input.actor)
       const run = store.read(runId)
       if (action === 'list') {
@@ -452,6 +461,7 @@ export function buildTools(store, { enrich }) {
         limitations: input.limitations,
         source: input.source,
         actor: input.actor,
+        hostCapture: input.hostCapture ?? null,
       })
       const record = result.evidence
       let claimLine = ''
@@ -471,6 +481,9 @@ export function buildTools(store, { enrich }) {
         evidence: record,
         text: [
           `已记录 ${record.id}：${record.claimId ?? '复核'}｜声明 ${record.declaredQuality} → 有效 ${record.quality}｜${record.status}`,
+          record.observed?.source === 'host'
+            ? `命令结果来自宿主采集 ${record.observed.captureId}（exit ${record.observed.exitCode}${Number.isInteger(record.observed.tests) ? `，tests ${record.observed.tests}` : ''}）`
+            : record.observed?.source === 'self-reported' ? '命令结果为模型自报（未匹配宿主采集）' : '',
           record.reasons.length ? `下调原因：${record.reasons.join('；')}` : '',
           record.limitations.length ? `限制：${record.limitations.join('；')}` : '',
           downgraded ? '注意：声明质量未被接受，最终判定按有效质量计算。' : '',

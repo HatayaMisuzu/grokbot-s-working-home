@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { buildContractBody, normalizeClaim } from '../lib/contract.js'
 import { gradeEvidence, stalenessOf } from '../lib/evidence.js'
 import { gateAction } from '../lib/actions.js'
-import { makeWorkspace } from './helpers.js'
+import { makeWorkspace, hostCaptureFor } from './helpers.js'
 
 const contract = {
   hash: 'contract-hash',
@@ -124,6 +124,7 @@ test('命令型证据带非宿主后端限制', () => {
       subjects: ['src/a.py'],
       observed: { command: 'pytest -q', exitCode: 0, tests: 3, summary: '3 passed', declaredEffects: true },
       assurance: { backend: 'workspace-write', isolated: false },
+      hostCapture: hostCaptureFor('pytest -q'),
     },
     claim(),
     { workspaceRoot: workspace },

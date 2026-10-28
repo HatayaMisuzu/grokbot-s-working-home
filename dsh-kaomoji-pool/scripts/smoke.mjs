@@ -117,7 +117,8 @@ assert.equal(all.value.kaomoji.length, 8, 'default count is 8')
 assert.equal(new Set(all.value.kaomoji).size, 8, 'candidates are distinct')
 assert.equal(all.value.remaining, total)
 for (const entry of all.value.kaomoji) assert.ok(inPool(entry), `candidate ${JSON.stringify(entry)} comes from the pool`)
-assert.ok(all.text.includes('挑 1 个'))
+assert.ok(all.text.includes('至多挑 1–2 个'))
+assert.ok(all.text.includes('不要换成彩色 Emoji'))
 
 // Single Chinese category name.
 const happy = await call({ category: '开心', count: 5 })
@@ -151,7 +152,11 @@ const first = await call({ category: 'happy', count: 5 })
 const excludedKeys = new Set(first.value.kaomoji.map((entry) => normalizeEntry(entry)))
 const second = await call({ category: 'happy', count: 5, exclude: first.value.kaomoji })
 for (const entry of first.value.kaomoji) assert.ok(!second.value.kaomoji.includes(entry))
-assert.equal(second.value.remaining, total - excludedKeys.size)
+// remaining counts pool entries, and one excluded face can match several
+// entries (cross-category width variants), so count matching entries.
+const excludedEntries = KAOMOJI_CATEGORIES.reduce(
+  (sum, meta) => sum + KAOMOJI_POOL[meta.key].filter((entry) => excludedKeys.has(normalizeEntry(entry))).length, 0)
+assert.equal(second.value.remaining, total - excludedEntries)
 
 // One response never repeats a face, even across categories.
 const wide = await call({ count: 24 })
@@ -177,7 +182,7 @@ assert.equal(section.interpolate, false)
 assert.ok(section.text.startsWith('## 颜文字池'))
 assert.ok(section.text.includes(`共 ${total} 个颜文字`))
 assert.ok(section.text.includes('kaomoji'))
-assert.ok(section.text.includes('通常最多 1–2 个'), 'usage discipline stays explicit')
+assert.ok(section.text.includes('每条回复至多 1–2 个，可以不用'), 'usage discipline stays explicit')
 assert.ok(!section.text.includes('连续两条回复都带'), 'repeated personality guidance is not duplicated here')
 for (const meta of KAOMOJI_CATEGORIES) {
   assert.ok(section.text.includes(`- ${meta.label}（${meta.key}；${meta.hint}）：`), `section lists ${meta.key} with its hint`)
