@@ -41,8 +41,9 @@ export function createArtTool(config = {}) {
         const layers = value.layers?.length ? `\n图层：${value.layers.map(layer => `${layer.id}(${layer.kind}@${layer.x},${layer.y})`).join('、')}` : ''
         const heading = value.artId ? `${value.artId}${value.parentId ? `（修改自 ${value.parentId}）` : ''}` : '排版检查'
         const review = value.elementReview?.hints?.length ? `\n要素核对（提示，不是判定）：\n${value.elementReview.hints.join('\n')}` : ''
+        const pace = value.pace?.hint ? `\n下一步：${value.pace.hint}` : ''
         const inspect = value.action === 'inspect' ? `\n画布数据：${JSON.stringify(value.document)}` : ''
-        return [{ type: 'text', text: `${heading}：${value.width} 列 × ${value.height} 行${layers}\n${value.markdown}${notes}${review}${inspect}` }]
+        return [{ type: 'text', text: `${heading}：${value.width} 列 × ${value.height} 行${layers}\n${value.markdown}${notes}${review}${pace}${inspect}` }]
       },
     },
     isConcurrencySafe: args => args?.action === 'guide' || args?.action === 'check',

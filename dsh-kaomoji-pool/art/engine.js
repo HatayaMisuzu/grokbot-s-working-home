@@ -1,4 +1,5 @@
 import { reviewElements } from './elements.js'
+import { advancePace } from './pace.js'
 /** Generic text canvas. No character templates, subject catalog, or model calls. */
 const segmenter = new Intl.Segmenter('und', { granularity: 'grapheme' })
 const MAX_TEXT = 65536
@@ -243,6 +244,12 @@ export function createEngine(config = {}) {
   }
   return {
     run(args, execution) {
+      const result = runAction(args, execution)
+      if (['draw', 'check', 'edit'].includes(result.action)) result.pace = advancePace(stateFor(execution), result.action)
+      return result
+    },
+  }
+  function runAction(args, execution) {
       execution?.signal?.throwIfAborted()
       const action = args.action
       if (action === 'check') {
@@ -293,7 +300,6 @@ export function createEngine(config = {}) {
         return { action, ...commit(state, result, base.artId) }
       }
       throw new Error('action 可选 guide、draw、edit、check、inspect')
-    },
   }
 }
 

@@ -137,6 +137,12 @@ profile `cordis.patch.yml` 按稳定行 id 覆盖：
 
 旧的 `inlineCategories` / `inlinePerCategory` 不再用于主入口的提示段：2.0 不把分类示例逐类塞进上下文。颜文字取样接口及语料保持兼容。不要同时在 profile 用 auto、又在毛球 preset 重复添加 scoped 行。
 
+## 固定节奏与成本
+
+每幅画按"draw 1 次 → check 1 次 → 最多 edit 2 次 → 交付"进行。`draw`/`check`/`edit` 的返回带 `pace`（按 agent 计数的 draws、redraws、checks、edits 和下一步提示）；draw 的提示要求交付前先调用 `check(elements=[...])` 核对要素。工具只提示，不会强行拦截调用。
+
+插件本身不改模型配置。想压低思考开销，可以在 profile 的配置覆盖里给 `@deepseek-ai/dsh-agent-default-model` 设 `reasoningEffort: low`（DeepSeek 适配器接受 `off | low | high | max`）。dsh 0.2.1-rc.4 的配置 schema 里没有限制 agent 轮数的字段。
+
 ## 安装与更新
 
 插件没有生产第三方依赖，也不需要新增模型或 API key。Node 声明最低 22.13.0，本次实际 Host 使用 DSH 随附 Node 24.21.0；其他 DSH 版本未逐一验证。
