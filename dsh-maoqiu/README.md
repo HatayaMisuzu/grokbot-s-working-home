@@ -1,8 +1,8 @@
 # 毛球成长与独立空间
 
-这是适配 **DeepSeek Harness 0.2.1-rc.3** 的 `dsh-maoqiu 0.3.0` Host 插件。保留 0.2.1 的经验、关注和 preset 适配，新增有期限和预算的连续自在时间、稳定物品和单项恢复。复用 DSH 原生 Agent 循环、取消和工具限制；没有第三方依赖、独立后台进程或额外模型引擎。验收与桌面加载状态见 [`VALIDATION.md`](VALIDATION.md)。
+这是适配 **DeepSeek Harness 0.2.1-rc.3 / rc.4**（`engines.dsh >=0.2.1-rc.3 <0.3.0-0`）的 `dsh-maoqiu 0.4.0` Host 插件，0.4.0 起同时提供「毛球模式」Agent 预设（原 `@local/dsh-maoqiu-mode`，见下文）。保留 0.2.1 的经验、关注和 preset 适配，新增有期限和预算的连续自在时间、稳定物品和单项恢复。复用 DSH 原生 Agent 循环、取消和工具限制；没有第三方依赖、独立后台进程或额外模型引擎。验收与桌面加载状态见 [`VALIDATION.md`](VALIDATION.md)。
 
-数据默认保存在 `E:\maoqiu_home`，与插件目录分开。现有 `~/.dsh/AGENTS.md` 和 `~/.dsh/maoqiu-memory.md` 保持原样；不会自动导入旧聊天或重新解释已有私人记忆。
+数据默认保存在 Windows 的 `E:\maoqiu_home`；非 Windows 默认 `$XDG_DATA_HOME/maoqiu_home`（XDG_DATA_HOME 为绝对路径时），否则 `~/.local/share/maoqiu_home`。均与插件目录和 `~/.dsh` 分开。现有 `~/.dsh/AGENTS.md` 和 `~/.dsh/maoqiu-memory.md` 保持原样；不会自动导入旧聊天或重新解释已有私人记忆。
 
 ## 使用
 
@@ -23,6 +23,25 @@
 自主活动复用当前 DSH agent 的工具循环和取消能力。`plan` 只保存意图，`run` 才执行小动作并回读；已完成活动重跑时只核对现有产物，不重建；支持暂停、恢复、取消、失败后修订和重试，成功运行可联动更新关注点进度。`space append` 按原文追加，不自动补换行；activity 的 draft 执行是替换全文。没有定时器，不会在 DSH 停止或关闭后继续活动，也不会自动对外发消息。第一版动作包括保存文字草稿、修改虚拟场景配置；场景没有图形渲染，不能当作现实天气。
 
 自在时间、保护上限、冲突与单项恢复的完整说明见 [FREETIME.md](FREETIME.md)。
+
+## 毛球模式（0.4.0 并入）
+
+安装本包即注册预设 `maoqiu`「毛球模式」（`cordis.patch.yml` 的 `preset-maoqiu`）。人设写成原则：温柔、有点黏人、带女仆感和恋爱感、称呼自然、偶尔括号小动作、有自己的看法和兴趣、可以安静、不为产出而产出；没有固定语气词、颜文字配额或“电量”播报，禁止彩色 Emoji。
+
+- `maoqiu_*` 空间工具由 Host 行 `maoqiu` 注册，毛球模式可见。
+- 预设内的 `dsh-maoqiu/mode`（`lib/mode.js`）只在该预设 scope 屏蔽 `work_*`；`restrictWorkloop: false` 可关闭。预设先于工作闭环插件激活时，它会在 `tools/change` 时补上屏蔽。标准模式不受影响。
+- 自在时间默认开启、预算不变；QQ 入口默认关闭；子 agent 默认只读。
+
+从旧包升级：先 `plugin_manager(action="remove_bundle", target="@local/dsh-maoqiu-mode")`，再重装本包（详见 `../maoqiu-mode/README.md`）。
+
+## 隐私与备份
+
+DSH 自身没有覆盖毛球空间的备份：空间位于 `DSH_HOME` 之外，DSH 的 storage 只对自己的记录做 `.bak` 留档（`@deepseek-ai/dsh-storage-json` 的 `backupRecord`）。为避免个人数据被顺带收走，`init` 会在空间根目录写入（已存在则不覆盖）：
+
+- `.gitignore`（内容 `*`）：空间被放进 git 仓库时不会被提交；
+- `.nobackup`：供支持标记文件的备份工具排除（如 `restic/borg --exclude-if-present .nobackup`），Windows 文件历史、OneDrive 等不识别该标记，需要自行排除目录。
+
+已有空间（如 `E:\maoqiu_home`）可运行 `node bin/maoqiu.js --home E:/maoqiu_home privacy` 补写标记，不改动其他文件。需要备份时用 `backup --to` 显式导出。
 
 ## 安装
 
@@ -48,7 +67,7 @@ plugin_manager(action="install_bundle", target="本插件目录的绝对路径")
 
 ## 更改空间路径
 
-插件配置 `home` 优先于环境变量 `MAOQIU_HOME`，两者未设置时使用 `E:/maoqiu_home`。在 profile 的用户 patch 中覆盖：
+插件配置 `home` 优先于环境变量 `MAOQIU_HOME`，两者未设置时按平台使用上述默认路径（Windows 为 `E:/maoqiu_home`）。在 profile 的用户 patch 中覆盖：
 
 ```yaml
 - id: maoqiu
