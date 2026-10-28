@@ -152,7 +152,11 @@ const first = await call({ category: 'happy', count: 5 })
 const excludedKeys = new Set(first.value.kaomoji.map((entry) => normalizeEntry(entry)))
 const second = await call({ category: 'happy', count: 5, exclude: first.value.kaomoji })
 for (const entry of first.value.kaomoji) assert.ok(!second.value.kaomoji.includes(entry))
-assert.equal(second.value.remaining, total - excludedKeys.size)
+// remaining counts pool entries, and one excluded face can match several
+// entries (cross-category width variants), so count matching entries.
+const excludedEntries = KAOMOJI_CATEGORIES.reduce(
+  (sum, meta) => sum + KAOMOJI_POOL[meta.key].filter((entry) => excludedKeys.has(normalizeEntry(entry))).length, 0)
+assert.equal(second.value.remaining, total - excludedEntries)
 
 // One response never repeats a face, even across categories.
 const wide = await call({ count: 24 })
