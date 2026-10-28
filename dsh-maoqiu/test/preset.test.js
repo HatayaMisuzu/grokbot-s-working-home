@@ -16,7 +16,7 @@ test('bundle inserts the host row and the maoqiu preset with the scoped mode hel
 })
 
 test('engines cover rc.3 and rc.4', () => {
-  assert.equal(pkg.version, '0.4.0')
+  assert.equal(pkg.version, '0.5.0')
   assert.equal(pkg.engines.dsh, '>=0.2.1-rc.3 <0.3.0-0')
 })
 

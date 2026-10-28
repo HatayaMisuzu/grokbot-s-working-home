@@ -1,6 +1,6 @@
 # 毛球成长与独立空间
 
-这是适配 **DeepSeek Harness 0.2.1-rc.3 / rc.4**（`engines.dsh >=0.2.1-rc.3 <0.3.0-0`）的 `dsh-maoqiu 0.4.0` Host 插件，0.4.0 起同时提供「毛球模式」Agent 预设（原 `@local/dsh-maoqiu-mode`，见下文）。保留 0.2.1 的经验、关注和 preset 适配，新增有期限和预算的连续自在时间、稳定物品和单项恢复。复用 DSH 原生 Agent 循环、取消和工具限制；没有第三方依赖、独立后台进程或额外模型引擎。验收与桌面加载状态见 [`VALIDATION.md`](VALIDATION.md)。
+这是适配 **DeepSeek Harness 0.2.1-rc.3 / rc.4**（`engines.dsh >=0.2.1-rc.3 <0.3.0-0`）的 `dsh-maoqiu 0.5.0` Host 插件，0.4.0 起同时提供「毛球模式」Agent 预设（原 `@local/dsh-maoqiu-mode`，见下文）。保留 0.2.1 的经验、关注和 preset 适配，新增有期限和预算的连续自在时间、稳定物品和单项恢复。复用 DSH 原生 Agent 循环、取消和工具限制；没有第三方依赖、独立后台进程或额外模型引擎。验收与桌面加载状态见 [`VALIDATION.md`](VALIDATION.md)。
 
 数据默认保存在 Windows 的 `E:\maoqiu_home`；非 Windows 默认 `$XDG_DATA_HOME/maoqiu_home`（XDG_DATA_HOME 为绝对路径时），否则 `~/.local/share/maoqiu_home`。均与插件目录和 `~/.dsh` 分开。现有 `~/.dsh/AGENTS.md` 和 `~/.dsh/maoqiu-memory.md` 保持原样；不会自动导入旧聊天或重新解释已有私人记忆。
 
@@ -33,6 +33,14 @@
 - 自在时间默认开启、预算不变；QQ 入口默认关闭；子 agent 默认只读。
 
 从旧包升级：先 `plugin_manager(action="remove_bundle", target="@local/dsh-maoqiu-mode")`，再重装本包（详见 `../maoqiu-mode/README.md`）。
+
+## 毛球的小家（0.5.0）
+
+- **角落**：notes→随笔，drafts→草稿，collections→收藏，关注点→window，经验→drawer，物品→things，自在时间、承诺和变更日志→board，私密条目→curtain。只是视图，数据不搬。角落名字由毛球用 `maoqiu_space` 的 `name_corner` 自己起，没起名时显示「未命名 · notes」这样的中性占位。
+- **私密角**：写入时带 `visibility: "private"`。它不自动召回、不主动展示，子 agent 看不到；主人问起或打开时照常看到原文，列表里始终显示「门帘后有 N 件」。门帘是礼貌，不是锁，不加密。
+- **变更日志**：`space/journal.jsonl` 只追加、带哈希链，`node bin/maoqiu.js verify` 校验。它**只能发现**日志或 `.history` 被改、被删，**不能阻止**本机上的修改。毛球模式下文件工具照常可读写，所以绕过 maoqiu_* 工具直接改文件不会留下日志，只能通过 verify 的哈希链和 `.history` 交叉核对发现部分痕迹。
+- **字符画**：同时装了颜文字插件（`@local/kaomoji-pool`，`chatPresets` 含 `maoqiu`）时，毛球模式里可以用它的 `text_art` 和 `kaomoji` 工具（联测已确认可见）；本包不依赖它。
+- **看看小家**：`node bin/maoqiu.js view --out /绝对路径/house.html` 生成离线 HTML，门帘默认展开；`view --text`、`view --md` 输出纯文本或 Markdown。生成的文件含私密原文，只在本机看，不会写进空间目录。
 
 ## 隐私与备份
 

@@ -9,6 +9,8 @@ const source = {
   },
 };
 const strings = (description) => ({ type: 'array', items: { type: 'string' }, description });
+const visibility = enumeration(['open', 'private'], '可选：private 放进门帘后的私密角，不自动召回、不主动展示；主人问起照常可读；缺省 open');
+const corner = enumeration(['notes', 'drafts', 'collections', 'window', 'drawer', 'things'], '可选：放在哪个角落；缺省按原来的位置');
 const scene = { type: 'object', additionalProperties: true, description: '空间场景配置，如 atmosphere、lighting；只是虚拟设定，不代表现实天气或已渲染画面' };
 const version = string('先 read 返回的 version；新文件/物品使用 missing，冲突须重新读取');
 
@@ -45,16 +47,16 @@ export const definitions = [
       action: enumeration(['save', 'update', 'read', 'list'], '操作'), id: string('关注ID'), title: string('关注什么'), reason: string('为何留下'),
       progress: string('已发生的最近进展；未做应如实写未开始'), next_step: string('可选的下一步，不代表执行'), materials: strings('关联材料的空间相对路径或来源引用'), source,
       status: enumeration(['active', 'paused', 'completed', 'archived', 'abandoned'], '可逆状态，不按TTL自动删除'),
-      kind: enumeration(['interest', 'commitment'], '个人兴趣或已向用户作出的承诺'), expected_version: version,
+      kind: enumeration(['interest', 'commitment'], '个人兴趣或已向用户作出的承诺'), expected_version: version, visibility, corner,
     },
   },
   {
     name: 'maoqiu_space', method: 'space',
-    description: '查看空间概况、列出材料、按需读原文或保存文字。write替换全文并保留历史；append将content原样追加到已有正文末尾，不自动补换行。需要path、content，path只用notes/、drafts/、collections/下的.md或.txt；可带title/source。scene无scene参数时读取，带scene对象时深合并保存并回读。warnings表示部分材料不可读，损坏原文不自动覆盖。',
+    description: '查看空间概况、列出材料、按需读原文或保存文字。write替换全文并保留历史；append将content原样追加到已有正文末尾，不自动补换行。需要path、content，path只用notes/、drafts/、collections/下的.md或.txt；可带title/source/visibility/corner。角落名字由你自己起，name_corner 改名会记入变更日志。scene无scene参数时读取，带scene对象时深合并保存并回读。warnings表示部分材料不可读，损坏原文不自动覆盖。',
     required: ['action'],
     properties: {
-      action: enumeration(['status', 'list', 'read', 'write', 'append', 'scene'], '操作；write替换全文并保留历史，append在已有正文末尾原样追加'), path: string('空间内相对文件路径，如drafts/rain-window.md'),
-      title: string('材料标题'), content: string('要真实保存的全文'), source, scene, expected_version: version,
+      action: enumeration(['status', 'list', 'read', 'write', 'append', 'scene', 'corners', 'name_corner'], '操作；write替换全文并保留历史，append在已有正文末尾原样追加；corners查看角落名字，name_corner给角落起名或改名'), path: string('空间内相对文件路径，如drafts/rain-window.md'),
+      title: string('材料标题'), content: string('要真实保存的全文'), source, scene, expected_version: version, visibility, corner: { type: 'string', description: 'write/append：材料放在哪个角落；name_corner：要命名的角落 id（notes/drafts/collections/window/drawer/things/board/curtain）' }, name: string('name_corner 的新名字；留空恢复未命名'),
     },
   },
   {
@@ -74,7 +76,7 @@ export const definitions = [
     properties: {
       action: enumeration(['list', 'read', 'upsert', 'archive'], '操作'), id: string('稳定 id，后续移动或改名保持这个 id'), expected_version: version,
       include_archived: { type: 'boolean' },
-      patch: { type: 'object', additionalProperties: false, properties: { name: string('名称'), description: string('描述'), region: string('区域'), position: string('文字位置'), links: strings('关联空间材料路径'), archived: { type: 'boolean' } } },
+      patch: { type: 'object', additionalProperties: false, properties: { name: string('名称'), description: string('描述'), region: string('区域'), position: string('文字位置'), links: strings('关联空间材料路径'), archived: { type: 'boolean' }, visibility, corner } },
     },
   },
   {
@@ -103,7 +105,8 @@ export function buildTools(store, enrich = (args) => args, invoke = (_method, _a
     isConcurrencySafe: () => method === 'recall',
     async execute(args, context) {
       const input = await enrich(args ?? {}, context, method);
-      return invoke(method, input, context, () => store[method](input));
+      const op = { tool: definition.name, action: input.action, source_kind: input.source?.kind, visibility: input.visibility ?? input.patch?.visibility };
+      return invoke(method, input, context, () => (store.withOp ? store.withOp(op, () => store[method](input)) : store[method](input)));
     },
   }));
 }

@@ -71,7 +71,7 @@ export function operationKind(method, args = {}) {
   if (method === 'experience') return ['list', 'read'].includes(action) ? 'read' : 'write'
   if (method === 'interest') return ['list', 'read'].includes(action) ? 'read' : 'write'
   if (method === 'space') {
-    if (['status', 'list', 'read'].includes(action)) return 'read'
+    if (['status', 'list', 'read', 'corners'].includes(action)) return 'read'
     if (action === 'scene' && !Object.prototype.hasOwnProperty.call(args, 'scene')) return 'read'
     return 'write'
   }

@@ -89,7 +89,7 @@ async function readExperiences(store, warnings, query, scopes, strictScope, limi
   for (const record of records) {
     try {
       const meta = record?.meta && typeof record.meta === 'object' && !Array.isArray(record.meta) ? record.meta : {}
-      if (meta.status === 'withdrawn') continue
+      if (meta.status === 'withdrawn' || meta.visibility === 'private') continue
       const match = scoreRecord(query, meta, typeof record?.content === 'string' ? record.content : '')
       if (match.score <= 0) continue
       const boundary = scopeBoundary(meta, scopes)
@@ -127,6 +127,7 @@ async function readMaterials(store, warnings, query, scopes, strictScope, limit)
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('材料解析结果无效')
       const content = typeof parsed.content === 'string' ? parsed.content.slice(0, PREVIEW_LENGTH) : ''
       const meta = parsed.meta && typeof parsed.meta === 'object' && !Array.isArray(parsed.meta) ? parsed.meta : {}
+      if (meta.visibility === 'private') continue
       const match = scoreText(query, [path, meta.title, content], meta.title)
       if (match.score <= 0) continue
       const boundary = scopeBoundary({ ...entry, ...meta }, scopes)
@@ -174,6 +175,7 @@ async function readRecentMaterials(store, warnings, limit, excludePaths) {
       const parsed = await store._readSpaceParsed(file, { preview: true })
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('材料解析结果无效')
       const meta = parsed.meta && typeof parsed.meta === 'object' && !Array.isArray(parsed.meta) ? parsed.meta : {}
+      if (meta.visibility === 'private') continue
       const content = typeof parsed.content === 'string' ? parsed.content : ''
       const fallbackTitle = entry.path.split('/').pop().replace(/\.(?:md|txt)$/i, '')
       const title = typeof meta.title === 'string' && meta.title.trim() ? meta.title : fallbackTitle
@@ -225,7 +227,8 @@ async function readInterests(store, warnings, query, mode, limit, includeRecent)
     warnings.push(warningFor(store, 'space/active_interests.json', error))
     return { interests: [], commitments: [] }
   }
-  const active = items.filter((item) => item && item.status === 'active')
+  // Private (curtained) items are never pushed into context automatically.
+  const active = items.filter((item) => item && item.status === 'active' && item.visibility !== 'private')
   const ranked = active.map((item) => ({
     item,
     match: query

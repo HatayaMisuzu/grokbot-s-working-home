@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 import test from 'node:test'
@@ -507,6 +507,36 @@ test('runtime provenance is appended separately from caller source kind and proj
     host.dispose()
   } finally {
     MaoqiuStore.prototype.experience = originalExperience
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('curtain via tools: main agent can read private text, subagent cannot even when it claims to be main; writes are journaled with the tool name', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'maoqiu-curtain-'))
+  try {
+    const store = new MaoqiuStore(root)
+    assert.equal((await store.init()).ok, true)
+    const host = fakeContext()
+    apply(host.ctx, { home: root })
+    const signal = new AbortController().signal
+    const main = agentWith([textMessage('写一点私密的东西')], 'adapter-test')
+    const child = agentWith([textMessage('子agent任务')], 'adapter-test', { header: { origin: 'subagent', parentSession: 'parent-1' } })
+    const space = host.registered.find((entry) => entry.name === 'maoqiu_space')
+    const saved = await space.execute({ action: 'write', path: 'notes/secret.md', content: '门帘后的话', visibility: 'private' }, { agent: main, signal })
+    assert.equal(saved.ok, true)
+    assert.equal((await space.execute({ action: 'read', path: 'notes/secret.md' }, { agent: main, signal })).content, '门帘后的话')
+    const childRead = await space.execute({ action: 'read', path: 'notes/secret.md', _viewer: 'main' }, { agent: child, signal })
+    assert.equal(childRead.ok, false)
+    const childList = await space.execute({ action: 'list', _viewer: 'main' }, { agent: child, signal })
+    assert.equal(childList.files.length, 0)
+    assert.equal(childList.private_count, 1)
+    const journal = (await readFile(join(root, 'space', 'journal.jsonl'), 'utf8')).trim().split('\n').map((x) => JSON.parse(x))
+    const entry = journal.find((x) => x.target === 'space/notes/secret.md')
+    assert.equal(entry.tool, 'maoqiu_space')
+    assert.equal(entry.action, 'write')
+    assert.equal(entry.visibility, 'private')
+    host.dispose()
+  } finally {
     await rm(root, { recursive: true, force: true })
   }
 })
