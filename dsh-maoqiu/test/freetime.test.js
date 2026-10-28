@@ -206,15 +206,20 @@ test('no daily cap, no strict tool count; legacy keys are mapped or ignored', as
 test('natural phrases from Ruby set the window; default is told back', async (t) => {
   const cases = [
     ['给你半小时', 1800], ['随便玩会儿', undefined], ['今晚你可以自由活动十分钟', 600], ['自由活动一小时', 3600],
-    ['毛球，去玩一个半小时吧', 5400], ['好啦 你去自由活动吧', undefined], ['给你二十五分钟自在时间', 1500], ['玩一刻钟', 900],
+    ['毛球，去玩一个半小时吧', 5400], ['好啦 你去自由活动吧', undefined], ['给你二十五分钟自在时间', 1500], ['玩一刻钟吧', 900],
     ['开始自在时间 90秒', 90], ['给你两个小时', 7200],
+    ['去玩吧', undefined], ['你自己玩会儿吧', undefined], ['给你半小时自由活动', 1800],
   ]
   for (const [text, seconds] of cases) {
     const g = freeTimeGrant(message(text))
     assert.ok(g, text)
     assert.equal(g.seconds, seconds, text)
   }
-  for (const text of ['不要自由活动', '先别玩了', '“自由活动”是什么意思', '你能自由活动吗？', '给你看一段代码', '一小时后提醒我开会', '继续'])
+  for (const text of [
+    '不要自由活动', '先别玩了', '“自由活动”是什么意思', '你能自由活动吗？', '给你看一段代码', '一小时后提醒我开会', '继续',
+    // Ruby talking about her own plans / play is not a grant to 毛球
+    '周末我想出去玩两小时', '我去玩会儿游戏', '我玩了半小时', '周末想出去玩两小时', '我自己玩会儿',
+  ])
     assert.equal(freeTimeGrant(message(text)), null, text)
   // Grants come only from Ruby's runtime message, never from synthetic or assistant text.
   assert.equal(freeTimeGrant(message('给你半小时', 'x', FREE_SOURCE)), null)

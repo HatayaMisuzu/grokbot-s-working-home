@@ -11,7 +11,7 @@
 - 系统说明补充：角落自己起名，私密可以有、隐瞒不可以。
 - 自在时间（Ruby 2026-10-28 决定）：
   - 只由 Ruby 随时口头安排，没有任何定时或自动开始。
-  - 能听懂自然说法，包括中文数字、句首带别的话、半小时、一刻钟；没说时长时默认 `defaultMinutes`=20 分钟，返回 `granted` 和 `told`，告诉 Ruby 实际时长。只认运行时标记为主人本人的消息。
+  - 能听懂自然说法，包括中文数字、句首带别的话、半小时、一刻钟；没说时长时默认 `defaultMinutes`=20 分钟，返回 `granted` 和 `told`，告诉 Ruby 实际时长。只认运行时标记为主人本人的消息；且须是对毛球明确给出的自在时间，Ruby 自述自己的玩/安排不算授权。
   - 取消每日上限和按日重置，不再严格限制工具次数；改为单次软上限 `softMinutes`=120、`softSteps`=60、`softTokens`=600000。超过时停下问 Ruby 是否继续，状态为 paused/soft-limit、needs_confirmation；Ruby 说继续后从当时用量重新计算。
   - 用量照常记录；free_time.json 的计费写入在变更日志里带 `bookkeeping: true`，视图里默认折叠。
   - checkpoint 和「上次停在哪」保留。

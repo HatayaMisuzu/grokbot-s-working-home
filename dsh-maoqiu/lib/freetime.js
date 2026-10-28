@@ -49,20 +49,28 @@ export function parseDuration(text) {
 }
 
 const NEGATION = /不要|别|不用|不许|不准|停止|暂停|结束|关闭|算了/
-const TRIGGER = /自由活动|自在时间|自由探索|随便玩|自己玩|去玩|玩一?会儿?|玩一下|继续玩|接着玩|再玩/
+// Play / free-time cues aimed at 毛球. `(?<!出)去玩` avoids matching 出去玩.
+const TRIGGER = /自由活动|自在时间|自由探索|随便玩|自己玩|(?<!出)去玩|玩一?会儿?|玩一下|继续玩|接着玩|再玩/
+const TO_MAOQIU = /给你|让你|你可以|你去|你自己|毛球/
+// Ruby describing her own outing or play — not a grant to 毛球.
+const SELF_PLAN = /我(?:想|要|也想|也要|自己)?(?:去|出去)?玩|我玩了|我去玩|我出去玩/
 /**
  * Only a fresh, direct message from Ruby (runtime source kind 'user') arms a
- * run. Quoted or questioning mentions, synthetic continuations and anything
- * the model claims about itself are not grants.
+ * run. Quoted or questioning mentions, synthetic continuations, her own plans
+ * ("我去玩会儿"), and anything the model claims about itself are not grants.
  */
 export function freeTimeGrant(message) {
   if (!human(message) || !message.id) return null
   const text = textOf(message).trim()
   if (!text || text.length > 80 || text.includes('\n')) return null
   if (NEGATION.test(text) || /[“”"「」『』]/.test(text) || /[吗？?]\s*$|什么意思|是什么/.test(text)) return null
+  // "周末我想出去玩两小时" / "我去玩会儿游戏" / "我玩了半小时" are not grants.
+  if (SELF_PLAN.test(text) && !TO_MAOQIU.test(text)) return null
   const seconds = parseDuration(text)
-  // "给你半小时" counts as a grant even without the word 玩.
-  if (!TRIGGER.test(text) && !(seconds && /给你|让你|你可以|玩/.test(text))) return null
+  // "给你半小时" counts without 玩. Bare "玩"+duration needs a to-毛球 cue or
+  // an imperative ending ("玩一刻钟吧"); chat like "周末想出去玩两小时" does not.
+  const directedPlay = /玩/.test(text) && /(?:吧|呀|啦|哦)\s*[!！。.]?\s*$/.test(text)
+  if (!TRIGGER.test(text) && !(seconds && (TO_MAOQIU.test(text) || directedPlay))) return null
   return { id: message.id, seconds, said: text.slice(0, 80) }
 }
 
