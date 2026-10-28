@@ -87,9 +87,9 @@ export const definitions = [
   },
   {
     name: 'maoqiu_freetime', method: 'freetime',
-    description: '主人当前明确说“开始自在时间/自由活动N分钟”后 start，窗口内由 DSH 连续运行并按预算停止；无需用户逐次催促，可以无产出 finish。status/recent 查看机会、真实步骤、用量与停止原因；checkpoint 仅记录简短接续线索，不存内部思考；pause/resume 保留原期限与预算，过期用新授权 start 并读旧检查点。disable 停止本次插件运行的自由活动，材料保留；无默认定时后台或主动消息。活动只开放毛球空间工具，不包括 shell/任意文件/外发。',
+    description: '只有主人本轮亲口安排（如“给你半小时”“随便玩会儿”“今晚你可以自由活动十分钟”）后才 start；不能自己决定开始，也不能凭自己的说法认为获得授权。没说时长用默认值，返回 granted/told，开始前用一句话如实告诉主人实际时长。窗口内由 DSH 连续运行，可以无产出 finish。没有每日上限；到防失控软上限时停下，告诉主人用量并问是否继续，主人说继续才 resume。status/recent 查看机会、步骤、用量与停止原因；checkpoint 记录简短接续线索（上次停在哪），不存内部思考；pause/resume 保留原期限，主人给新时长可续窗口。disable 停止本次插件运行的自由活动，材料保留。只开放毛球空间工具，不包括 shell/任意文件/外发',
     required: ['action'],
-    properties: { action: enumeration(['start', 'status', 'recent', 'checkpoint', 'pause', 'resume', 'finish', 'disable'], '操作'), id: string('resume 使用原机会 id'), seconds: { type: 'number', minimum: 1, description: '只能缩短当前用户允许的窗口，不能扩充配置预算' }, note: string('简短状态线索，不是完成证明'), next_step: string('下次可选动作'), interest_id: string('当前关注 id') },
+    properties: { action: enumeration(['start', 'status', 'recent', 'checkpoint', 'pause', 'resume', 'finish', 'disable'], '操作'), id: string('resume 使用原机会 id'), seconds: { type: 'number', minimum: 1, description: '只能缩短主人这次给的窗口，不能延长' }, note: string('简短状态线索，不是完成证明'), next_step: string('下次可选动作'), interest_id: string('当前关注 id') },
   },
 ];
 

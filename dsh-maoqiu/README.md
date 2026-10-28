@@ -1,6 +1,6 @@
 # 毛球成长与独立空间
 
-这是适配 **DeepSeek Harness 0.2.1-rc.3 / rc.4**（`engines.dsh >=0.2.1-rc.3 <0.3.0-0`）的 `dsh-maoqiu 0.5.0` Host 插件，0.4.0 起同时提供「毛球模式」Agent 预设（原 `@local/dsh-maoqiu-mode`，见下文）。保留 0.2.1 的经验、关注和 preset 适配，新增有期限和预算的连续自在时间、稳定物品和单项恢复。复用 DSH 原生 Agent 循环、取消和工具限制；没有第三方依赖、独立后台进程或额外模型引擎。验收与桌面加载状态见 [`VALIDATION.md`](VALIDATION.md)。
+这是适配 **DeepSeek Harness 0.2.1-rc.3 / rc.4**（`engines.dsh >=0.2.1-rc.3 <0.3.0-0`）的 `dsh-maoqiu 0.5.0` Host 插件，0.4.0 起同时提供「毛球模式」Agent 预设（原 `@local/dsh-maoqiu-mode`，见下文）。保留 0.2.1 的经验、关注和 preset 适配，新增由 Ruby 口头安排的连续自在时间（有防失控软上限）、稳定物品和单项恢复。复用 DSH 原生 Agent 循环、取消和工具限制；没有第三方依赖、独立后台进程或额外模型引擎。验收与桌面加载状态见 [`VALIDATION.md`](VALIDATION.md)。
 
 数据默认保存在 Windows 的 `E:\maoqiu_home`；非 Windows 默认 `$XDG_DATA_HOME/maoqiu_home`（XDG_DATA_HOME 为绝对路径时），否则 `~/.local/share/maoqiu_home`。均与插件目录和 `~/.dsh` 分开。现有 `~/.dsh/AGENTS.md` 和 `~/.dsh/maoqiu-memory.md` 保持原样；不会自动导入旧聊天或重新解释已有私人记忆。
 
@@ -30,7 +30,7 @@
 
 - `maoqiu_*` 空间工具由 Host 行 `maoqiu` 注册，毛球模式可见。
 - 预设内的 `dsh-maoqiu/mode`（`lib/mode.js`）只在该预设 scope 屏蔽 `work_*`；`restrictWorkloop: false` 可关闭。预设先于工作闭环插件激活时，它会在 `tools/change` 时补上屏蔽。标准模式不受影响。
-- 自在时间默认开启、预算不变；QQ 入口默认关闭；子 agent 默认只读。
+- 自在时间默认开启，只由 Ruby 口头安排（如“给你半小时”“随便玩会儿”，没说时长默认 20 分钟），没有每日上限；单次软上限默认 120 分钟、60 步、60 万 token，超了停下问 Ruby，不悄悄截断。旧配置键 decisions/tokens 映射成 softSteps/softTokens，seconds/tools/daily* 被忽略；QQ 入口默认关闭；子 agent 默认只读。
 
 从旧包升级：先 `plugin_manager(action="remove_bundle", target="@local/dsh-maoqiu-mode")`，再重装本包（详见 `../maoqiu-mode/README.md`）。
 

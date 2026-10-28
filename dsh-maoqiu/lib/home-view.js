@@ -118,15 +118,17 @@ export async function buildHomeView(store, options = {}) {
   try {
     const free = await store._readJson(join(store.spaceDir, 'free_time.json'), { runs: [] })
     const run = Array.isArray(free.runs) ? free.runs.at(-1) : null
-    if (run) lastStop = { at: run.last_step?.at || run.created_at, note: text(run.checkpoint?.note), next_step: text(run.checkpoint?.next_step), step: run.last_step ? [run.last_step.tool, run.last_step.action, run.last_step.path].filter(Boolean).join(' · ') : '', stop: text(run.stop_reason || run.status) }
+    if (run) lastStop = { at: run.last_step?.at || run.created_at, note: text(run.checkpoint?.note), next_step: text(run.checkpoint?.next_step), step: run.last_step ? [run.last_step.tool, run.last_step.action, run.last_step.path].filter(Boolean).join(' · ') : '', stop: run.stop_reason === 'soft-limit' ? '到软上限暂停，等 Ruby 决定是否继续' : text(run.stop_reason || run.status) }
   } catch (error) { warnings.push(store._warning(join(store.spaceDir, 'free_time.json'), error)) }
 
   const journal = await store.verifyJournal().catch((error) => ({ ok: false, entries: 0, problems: [{ problem: error.message }] }))
   let recent = []
+  let folded = 0
   try {
-    const lines = (await readFile(store.journalFile, 'utf8')).split('\n').filter(Boolean).slice(-40)
+    const lines = (await readFile(store.journalFile, 'utf8')).split('\n').filter(Boolean).slice(-200)
     // Consecutive entries for the same target and action fold into one line.
     for (const x of lines.map((line) => { try { return JSON.parse(line) } catch { return null } }).filter((x) => x && x.action !== 'journal-start').reverse()) {
+      if (x.bookkeeping) { if (recent.length < 6) folded += 1; continue }
       const what = [x.tool?.replace(/^maoqiu_/, ''), x.action].filter(Boolean).join(' ') || x.op
       const last = recent.at(-1)
       if (last && last.raw === x.target && last.what === what) { last.times += 1; continue }
@@ -141,7 +143,7 @@ export async function buildHomeView(store, options = {}) {
     generated_at: new Date(now).toISOString(),
     note: options.note || '',
     corners: CORNER_IDS.filter((id) => id !== 'curtain' && id !== 'board').map((id) => corners[id]),
-    board: { ...corners.board, last_stop: lastStop, commitments, recent },
+    board: { ...corners.board, last_stop: lastStop, commitments, recent, folded_bookkeeping: folded },
     curtain: { ...corners.curtain, items: curtain },
     journal: { ok: journal.ok, entries: journal.entries, head: journal.head, problems: (journal.problems || []).length },
     warnings,
@@ -275,7 +277,7 @@ ${view.corners.map(cornerHtml).join('\n')}
 <section class="card wide c-board"><header>${icon('board')}<div><h2 class="${view.board.named ? '' : 'unnamed'}">${escapeHtml(view.board.name)}</h2><div class="from">${escapeHtml(view.board.from)}</div></div></header>
 <div class="board"><div><h3>上次停在</h3>${stop ? `<div class="stop"><div>${escapeHtml(stop.note || stop.step || '没有留下线索')}</div>${stop.next_step ? `<div class="next">下次也许：${escapeHtml(stop.next_step)}</div>` : ''}<div class="hint">${escapeHtml(formatLocal(stop.at, true))}</div></div>` : '<p class="empty">还没有自在时间的记录。</p>'}</div>
 <div><h3>答应过的事</h3>${view.board.commitments.length ? `<ul>${view.board.commitments.map(itemHtml).join('')}</ul>` : '<p class="empty">暂时没有。</p>'}</div>
-<div><h3>最近的变化</h3>${view.board.recent.length ? `<ul class="log">${view.board.recent.map((x) => `<li><time>${escapeHtml(formatLocal(x.at, true).slice(5))}</time><span>${escapeHtml(x.what)} · ${escapeHtml(x.target)}${x.times > 1 ? ` <span class="tag">×${x.times}</span>` : ''}</span></li>`).join('')}</ul>` : '<p class="empty">还没有记录。</p>'}</div></div></section>
+<div><h3>最近的变化</h3>${view.board.recent.length ? `<ul class="log">${view.board.recent.map((x) => `<li><time>${escapeHtml(formatLocal(x.at, true).slice(5))}</time><span>${escapeHtml(x.what)} · ${escapeHtml(x.target)}${x.times > 1 ? ` <span class="tag">×${x.times}</span>` : ''}</span></li>`).join('')}</ul>` : '<p class="empty">还没有记录。</p>'}${view.board.folded_bookkeeping ? `<p class="empty">另有 ${view.board.folded_bookkeeping} 条自在时间计费记录已折叠，完整保留在变更日志里。</p>` : ''}</div></div></section>
 <section class="card wide c-curtain" id="curtain"><div class="valance"></div><details open><summary>${icon('curtain')}<div><h2 class="${view.curtain.named ? '' : 'unnamed'}">${escapeHtml(view.curtain.name)}</h2><div class="from">门帘后有 ${view.curtain.items.length} 件 · 门帘只是礼貌，不是锁</div></div></summary>
 ${view.curtain.items.length ? `<ul class="curtain-list">${curtainItems}</ul>` : '<p class="empty">门帘后面现在是空的。</p>'}</details></section>
 </div>
@@ -299,6 +301,7 @@ export function renderText(view) {
   if (stop?.next_step) out.push(`  下次也许：${stop.next_step}`)
   for (const item of view.board.commitments) out.push(`  答应过：${item.title}`)
   for (const x of view.board.recent) out.push(`  ${formatLocal(x.at, true).slice(5)}  ${x.what} · ${x.target}${x.times > 1 ? ` ×${x.times}` : ''}`)
+  if (view.board.folded_bookkeeping) out.push(`  （另有 ${view.board.folded_bookkeeping} 条自在时间计费记录已折叠）`)
   out.push('', `[ ${view.curtain.name} ]  门帘后有 ${view.curtain.items.length} 件（门帘不是锁）`)
   for (const item of view.curtain.items) {
     out.push(`  · ${item.title}（${item.from_name}）`)
@@ -322,6 +325,7 @@ export function renderMarkdown(view) {
   if (stop?.next_step) out.push(`- 下次也许：${stop.next_step}`)
   for (const item of view.board.commitments) out.push(`- 答应过：${item.title}`)
   for (const x of view.board.recent) out.push(`- ${formatLocal(x.at, true)} ${x.what} · \`${x.target}\``)
+  if (view.board.folded_bookkeeping) out.push(`- （另有 ${view.board.folded_bookkeeping} 条自在时间计费记录已折叠）`)
   out.push('', `## ${view.curtain.name}（门帘后有 ${view.curtain.items.length} 件，门帘不是锁）`)
   for (const item of view.curtain.items) out.push('', `### ${item.title}（${item.from_name}）`, '', ...String(item.content || '').split('\n').map((line) => `> ${line}`))
   out.push('', view.journal.entries ? `变更日志 ${view.journal.entries} 条，校验${view.journal.ok ? '通过' : `发现 ${view.journal.problems} 处问题`}` : '还没有变更日志')

@@ -569,6 +569,8 @@ export class MaoqiuStore {
       ...(op.source_kind ? { source_kind: op.source_kind } : {}),
       ...(op.visibility ? { visibility: op.visibility } : {}),
     }
+    // Free-time usage accounting is kept in full but marked so views can fold it.
+    if (fields.target === 'space/free_time.json') fields.bookkeeping = true
     try { await appendJournal(this.journalFile, fields) }
     catch (error) { throw new Error(`内容已写入，但变更日志追加失败：${error.message}`) }
   }

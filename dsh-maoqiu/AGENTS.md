@@ -12,7 +12,7 @@
 ## 模块职责
 
 - `lib/index.js`：DSH 接入、入口访问边界、运行时来源补充，以及按实际 agent preset 选择 chat/work 的每 agent/turn/query/revision/mode/scope 自动召回缓存。
-- `lib/freetime.js`：手动机会、检查点、原生续接、预算与用户中断；不要另建模型循环。运行状态写入不生成逐步备份。新增触发源必须沿用现有上限与取消检查，不得默认开启。
+- `lib/freetime.js`：手动机会、检查点、原生续接、预算与用户中断；不要另建模型循环。运行状态写入不生成逐步备份。只由主人本轮真实消息授权（运行时 source.kind=user），不得新增定时、日程或自动触发源；不设每日上限，只有可配置软上限，超了停下问主人，不悄悄截断。
 - `lib/space-items.js`：稳定物品、版本检查和现有 .history 单项恢复。
 - `lib/context.js`：入口身份、访问级别和不超过 1200 字符的可读召回摘要。
 - `lib/recall.js`：经验、材料和兴趣召回；经验正文只匹配前 500 字符，材料读取最多预览 64 KiB；负责中文降噪、scope 边界和 warnings。不要在这里再增加 turn 缓存；兴趣轮换只允许使用有限的 WeakMap 游标。
