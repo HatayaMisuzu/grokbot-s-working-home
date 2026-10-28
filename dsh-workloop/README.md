@@ -1,4 +1,4 @@
-# 工作闭环（Workloop）— DSH 工作闭环与协作反馈插件（v0.1.1）
+# 工作闭环（Workloop）— DSH 工作闭环与协作反馈插件（v0.2.0）
 
 对齐 `DSH_WorkSkill_单插件方向方案 v0.3`：**只做一个插件**，把 Hermes Work-Skill 的三条主线（Loop 可信闭环、Radio 协作感知、经验反馈）蒸馏成 DSH 原生插件能力。它不替代 DSH 的执行引擎，也不建第二套学习系统。
 
@@ -59,6 +59,15 @@ runs/<run-id>/
   - 部分过 → PARTIAL；全没过 → FAIL；显式 block → BLOCKED
   - 非 PASS 收尾必须 `acknowledgeGaps=true` + `knownGaps`，否则拒绝收尾
   - 复核必须使用 supporting、至少 Q2 的 `review_record`；`inconclusive` 或低质量复核不算完成
+
+### 宿主证据（v0.2.0 新增）
+
+- 插件监听 `tools/post-execute`，对完成的前台 `bash` 调用记录命令、退出码、输出尾部与 sha256、从输出解析出的测试数（node --test / pytest / jest / vitest / unittest），编号 `HX-n`。钩子只记录，始终原样放行（`next()`），不改写、不拦截任何结果。
+- `tests_pass` / `command_output` 证据记录时，按 `observed.captureId` 或同一 `command` 匹配本会话（子 agent 归到父会话）最近的采集；匹配到时命令、退出码、测试数以宿主为准，模型填写的数字被覆盖。
+- 匹配不到 = 模型自报，最高 Q1；宿主输出里解析不到测试数的 `tests_pass` 不能支撑通过。
+- `work_evidence action=captures` 列出本会话已采集的结果。
+- 采集只存在进程内存（每会话最多 50 条），宿主重启后丢失，证据会诚实地回落到“自报”。
+- 非命令型 Oracle（文件指纹类、复核、用户接受）规则不变：文件指纹本来就由插件自己计算。
 
 ### Radio：协作感知
 
@@ -130,7 +139,7 @@ Loader 行 id 为 `workloop`，包名 `@local/workloop`。可选配置（写进 
 - id: workloop
   name: '@local/workloop'
   config:
-    home: 'C:/Users/Lenovo/.dsh/work'   # 默认 $DSH_HOME/work
+    home: '<DSH_HOME>/work'              # 绝对路径；省略时默认 $DSH_HOME/work
     tools: true
     prompt: true
     activeContext: true
@@ -138,13 +147,17 @@ Loader 行 id 为 `workloop`，包名 `@local/workloop`。可选配置（写进 
     subagentAccess: collaborate          # off | read | collaborate | write
     maxNotices: 50
     noticeDedupeSeconds: 1800
+    hostEvidence: true                   # 通过 tools/post-execute 采集真实命令结果
+    captureTools: [bash]                 # 采集哪些宿主工具的结果
 ```
+
+命令行安装（隔离验证用）：`dsh plugin --profile <profile> add <本插件目录>`，再用 `dsh --profile <profile> --dump-config` 确认出现 `# == @local/workloop` 层。
 
 卸载：`plugin_manager(action="remove_bundle", target="@local/workloop")`，数据保留在 `home`，不自动删除。
 
 ## 8. 验证到什么程度
 
-已执行（`node --test`，45 个用例全部通过；`node scripts/check.mjs` 结构检查通过）：
+已执行（`node --test`，55 个用例全部通过；`node scripts/check.mjs` 结构检查通过）：
 
 - 合同冻结、版本升级、事件哈希链、外部篡改可检测；
 - Claim 变化使对应证据失效；目标变化只提升 epoch 并要求重新评估；
@@ -164,7 +177,8 @@ Loader 行 id 为 `workloop`，包名 `@local/workloop`。可选配置（写进 
 
 - 尚未在真实 DSH 桌面宿主重启后验证 Plugin Manager 的 locale 实际渲染与毛球预设切换；本轮已针对 rc.3 的 `sessionProjections.stateOf` 接口做兼容实现，离线测试使用 mock projection。
 - 尚未在真实长会话中测量每 turn 重新指纹带来的 I/O 开销；摘要仍有字符上限，性能只做了定向单元/集成测试。
-- 未验证 pre-execute 拦截（v0.1 不做）；`enforcement: 'recorded'` 是诚实级别。
+- 未验证 pre-execute 拦截（不做）；`enforcement: 'recorded'` 是诚实级别。
+- 宿主证据只覆盖 `bash`（`tool-bash` 的 foreground 结果形状）；pwsh、后台任务、被提升为后台的长命令不采集。
 - 工具层能保证“调用了 finalize 就出不了假 PASS”，但**不能阻止模型完全不调用工具直接宣称完成**——这需要宿主级钩子，属后续阶段。
 - 通知的送达/已读仍取决于 DSH 原生消息机制，本插件只记录声明与确认。
 

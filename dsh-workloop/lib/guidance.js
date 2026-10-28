@@ -10,7 +10,7 @@ export function guidanceText() {
 复杂、多步、高风险或需要明确验收的任务，可用 work_* 工具保存「合同—Claim—证据—判定」；解释、闲聊、一步能做完的小事不要开 Run，不要为了走流程而走流程。
 
 硬规则：
-1. 退出码、\`assert True\`、\`echo ok\` 只算 Q0，不能满足完成 Claim；测试过程存在 ≠ 测试有效。
+1. \`assert True\`、\`echo ok\` 只算 Q0；tests_pass/command_output 的退出码与测试数以宿主采集（先用 bash 真跑，再按同一 command 记录）为准，模型自报最高 Q1。
 2. Claim 定义变化后，绑定旧定义的历史证据失效；目标/交付物变化后，旧证据会被标记为待重新评估。
 3. 功能验证通过 ≠ 副作用被隔离：workspace-write / danger-full-access 不是沙箱证明，报告里要如实写限制。
 4. 同一路线连续失败两次就换方法或 block，不机械重试；做不到、没验证、受环境限制的部分如实说明。

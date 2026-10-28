@@ -176,6 +176,7 @@ export function gradeEvidence(input, claim, run) {
     isolated: assuranceInput.isolated === true,
   }
 
+  let observedOut = input.observed
   if (oracle === undefined) {
     rank = 0
     reasons.push(`未知 Oracle ${JSON.stringify(oracleName)}，只能算 Q0`)
@@ -183,7 +184,32 @@ export function gradeEvidence(input, claim, run) {
     if (!(claim.oracle || []).includes(oracleName)) {
       rank = cap(rank, 1, `Oracle ${oracleName} 不在 Claim 允许列表内，最高 Q1`, reasons)
     }
-    const observed = input.observed && typeof input.observed === 'object' ? input.observed : {}
+    let observed = input.observed && typeof input.observed === 'object' ? input.observed : {}
+    const host = oracle.commandBased && input.hostCapture && typeof input.hostCapture === 'object' ? input.hostCapture : null
+    if (oracle.commandBased) {
+      if (host) {
+        // Host-observed facts replace whatever the model typed.
+        observed = {
+          ...observed,
+          command: host.command,
+          exitCode: host.exitCode,
+          tests: host.tests ?? undefined,
+          source: 'host',
+          captureId: host.id,
+          outputSha256: host.outputSha256,
+        }
+        if (oracleName === 'tests_pass' && !Number.isInteger(host.tests)) {
+          rank = cap(rank, 1, '宿主输出中未解析到测试数量，最高 Q1', reasons)
+        }
+        if (host.timedOut || host.aborted) {
+          rank = cap(rank, 1, '宿主记录该命令超时或被中止，最高 Q1', reasons)
+        }
+      } else {
+        observed = { ...observed, source: 'self-reported' }
+        rank = cap(rank, 1, '命令结果为模型自报，未匹配到宿主采集记录（tools/post-execute），最高 Q1', reasons)
+      }
+    }
+    observedOut = observed
     const command = String(observed.command ?? '').trim()
     if (oracle.commandBased) {
       if (command === '') {
@@ -260,7 +286,7 @@ export function gradeEvidence(input, claim, run) {
     declaredQuality: declared,
     status,
     subjects,
-    observed: sanitizeObserved(input.observed),
+    observed: sanitizeObserved(observedOut),
     assurance,
     limitations: unique(limitations),
     reasons,
