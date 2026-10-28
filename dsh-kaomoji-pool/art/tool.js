@@ -15,7 +15,7 @@ export function createArtTool(config = {}) {
   let engine
   return {
     name: 'text_art',
-    description: '轻松聊天中的自由字符画工作台。先 guide 学习画法，再自己构图：draw 接受原文或通用图层，edit 局部修改，check 排版，inspect 回读画布。不按题材查找预制作品，不调用额外模型。',
+    description: '轻松聊天中的自由字符画工作台。先 guide 学习画法，再自己构图：draw 接受原文或通用图层，edit 局部修改，check 排版并按 elements 提示核对要素，inspect 回读画布。不按题材查找预制作品，不调用额外模型。',
     parameters: {
       type: 'object', additionalProperties: false, required: ['action'],
       properties: {
@@ -27,6 +27,9 @@ export function createArtTool(config = {}) {
         changes: { type: 'array', description: 'edit 的图层更新；已有 id 合并字段，新 id 添加图层，remove:true 删除。', items: { type: 'object', additionalProperties: false, required: ['id'], properties: { ...nodeProperties, remove: { type: 'boolean' } } } },
         width: integer(`画布宽度；draw 省略时按内容计算，上限 ${config.maxWidth ?? 120}。edit 增大画布也用此字段。`),
         height: integer(`画布高度；draw 省略时按内容计算，上限 ${config.maxHeight ?? 80}。`),
+        elements: { type: 'array', items: { type: 'string' }, description: 'check 可选：从题目和配文中列出必须画出的关键要素（主体特征、物件、动作、状态），工具返回逐项核对提示；只是提醒，不判定像不像' },
+        request: string('check 可选：用户的题目原话，用于标注要素来源'),
+        caption: string('check 可选：准备随画附上的配文，用于提醒画与配文一致'),
         style: { type: 'string', enum: ['ascii', 'unicode'], description: '几何边框风格，默认 ascii；text 图层内容始终由你自行绘制' },
       },
     },
@@ -37,8 +40,9 @@ export function createArtTool(config = {}) {
         const notes = value.warnings?.length ? `\n排版提示：${value.warnings.join('；')}` : ''
         const layers = value.layers?.length ? `\n图层：${value.layers.map(layer => `${layer.id}(${layer.kind}@${layer.x},${layer.y})`).join('、')}` : ''
         const heading = value.artId ? `${value.artId}${value.parentId ? `（修改自 ${value.parentId}）` : ''}` : '排版检查'
+        const review = value.elementReview?.hints?.length ? `\n要素核对（提示，不是判定）：\n${value.elementReview.hints.join('\n')}` : ''
         const inspect = value.action === 'inspect' ? `\n画布数据：${JSON.stringify(value.document)}` : ''
-        return [{ type: 'text', text: `${heading}：${value.width} 列 × ${value.height} 行${layers}\n${value.markdown}${notes}${inspect}` }]
+        return [{ type: 'text', text: `${heading}：${value.width} 列 × ${value.height} 行${layers}\n${value.markdown}${notes}${review}${inspect}` }]
       },
     },
     isConcurrencySafe: args => args?.action === 'guide' || args?.action === 'check',
