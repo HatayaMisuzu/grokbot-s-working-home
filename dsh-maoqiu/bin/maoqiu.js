@@ -31,10 +31,11 @@ try {
     const store = new MaoqiuStore(home);
     if (command === 'init') result = await store.init();
     else if (command === 'status') result = await store.status();
+    else if (command === 'privacy') result = await store.ensurePrivacyMarkers();
     else if (command === 'recall') result = await store.recall({ query: rest.join(' '), mode: 'work' });
     else if (command === 'help' || command === '--help') result = {
-      usage: 'node bin/maoqiu.js [--home ABS] init|status|recall <话题>|backup --to ABS_DIR|restore --from ABS_DIR',
-      note: 'init只创建空的必要数据文件；backup/restore只显式维护整个空间，恢复不会覆盖已有非空目录；运行时修改请使用DSH毛球工具。',
+      usage: 'node bin/maoqiu.js [--home ABS] init|status|privacy|recall <话题>|backup --to ABS_DIR|restore --from ABS_DIR',
+      note: 'init只创建空的必要数据文件和隐私标记；privacy为已有空间补写 .gitignore/.nobackup（不覆盖）；backup/restore只显式维护整个空间，恢复不会覆盖已有非空目录；运行时修改请使用DSH毛球工具。',
     };
     else throw new Error('未知命令：' + command);
   }

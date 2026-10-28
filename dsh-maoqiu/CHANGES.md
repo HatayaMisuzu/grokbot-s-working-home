@@ -1,3 +1,14 @@
+# dsh-maoqiu 0.4.0
+
+2026-10-28，合并 `@local/dsh-maoqiu-mode`，适配 DSH 0.2.1-rc.4（engines 仍为 `>=0.2.1-rc.3 <0.3.0-0`）。
+
+- 毛球模式预设 `maoqiu` 并入本包 `cordis.patch.yml`；人设改写为原则，去掉固定语气词、颜文字配额、电量播报等模板条目，禁止彩色 Emoji，与空间使用说明一致。
+- `lib/mode.js`（`dsh-maoqiu/mode`）在预设 scope 内屏蔽 `work_*`；修复预设先于工作闭环插件激活时屏蔽失效（rc.4 实测复现），现按已知子集屏蔽并在 `tools/change` 时补全。
+- 默认空间路径：Windows 保持 `E:/maoqiu_home`；其他平台 `$XDG_DATA_HOME/maoqiu_home` 或 `~/.local/share/maoqiu_home`；`home` 配置、`MAOQIU_HOME` 优先。
+- `init` 写入 `.gitignore`/`.nobackup` 隐私标记；CLI 新增 `privacy` 为已有空间补写。
+- dsh-smoke 改为通过 bundle 安装本包，并新增毛球模式工具可见性与系统提示检查。
+- `maoqiu-mode/` 仅保留迁移说明。
+
 # dsh-maoqiu 0.3.0
 
 2026-10-26，基于现有 0.2.1 增量升级，适配 DSH 0.2.1-rc.3。

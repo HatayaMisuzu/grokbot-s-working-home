@@ -22,6 +22,11 @@ import { objects, history, fileVersion, expectVersion } from './space-items.js'
  * Explicit reads see current files. Automatic recall is bounded and cached by
  * the adapter for one turn; successful writes invalidate that cached result.
  */
+export const PRIVACY_MARKERS = Object.freeze({
+  '.gitignore': '# 毛球个人空间：不要提交到任何仓库\n*\n',
+  '.nobackup': '毛球个人空间：请备份工具排除本目录（如 restic/borg --exclude-if-present .nobackup）。\n需要备份时使用 node bin/maoqiu.js backup 显式导出。\n',
+})
+
 export class MaoqiuStore {
   static locks = new Map()
 
@@ -37,6 +42,19 @@ export class MaoqiuStore {
     this.activitiesFile = join(this.spaceDir, 'activities.json')
     this.revision = 0
     this.writeContext = new AsyncLocalStorage()
+  }
+
+  /**
+   * Personal data must not ride along in repositories or generic backups.
+   * DSH itself has no backup that reaches this directory (it lives outside
+   * DSH_HOME); these markers cover git and marker-aware backup tools. Only
+   * writes into an already existing, non-symlinked home; never overwrites.
+   */
+  async ensurePrivacyMarkers() {
+    const root = await this._lstatIfExists(this.home)
+    if (!root || root.isSymbolicLink() || !root.isDirectory()) return { ok: false, skipped: true }
+    for (const [file, content] of Object.entries(PRIVACY_MARKERS)) await this._writeIfMissing(join(this.home, file), content)
+    return { ok: true, files: Object.keys(PRIVACY_MARKERS) }
   }
 
   async init() {
@@ -57,6 +75,7 @@ export class MaoqiuStore {
       await this._writeIfMissing(this.interestsFile, '[]\n')
       await this._writeIfMissing(this.sceneFile, '{}\n')
       await this._writeIfMissing(this.activitiesFile, '[]\n')
+      await this.ensurePrivacyMarkers()
       return { ok: true, home: this.home, initialized: true }
     } catch (error) {
       return this._failure(error.message)

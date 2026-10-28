@@ -182,6 +182,7 @@ export function apply(ctx) {
         purpose: options.purpose || null,
         tools: (options.tools || []).map((schema) => schema.name),
         marker,
+        system: marker === 'SMOKE_PRESET' || marker === 'SMOKE_STANDARD' ? [typeof options.system === 'string' ? options.system : '', ...messages.filter((m) => m?.role === 'system').map(asText)].join('\\n') : undefined,
         messages: messages.map((message) => ({ role: message.role, source: message.source, text: asText(message) })),
       });
       if (options.purpose === 'session-title') {
@@ -276,6 +277,7 @@ const steps = [];
 export function apply(ctx) {
   const errors = [];
   let forbiddenExecutions = 0;
+  for (const workName of ['work_action', 'work_claim', 'work_contract', 'work_evidence', 'work_learn', 'work_notice', 'work_verdict']) ctx.effect(() => ctx.tools.register({ name: workName, description: 'smoke stand-in for the optional workloop tool', parameters: { type: 'object', properties: {} }, output: { schema: { type: 'object' }, render: () => [{ type: 'text', text: 'work' }] }, execute: () => ({}) }));
   ctx.effect(() => ctx.tools.register({ name: 'smoke_forbidden', description: 'smoke forbidden capability', parameters: { type: 'object', properties: {} }, output: { schema: { type: 'object' }, render: () => [{ type: 'text', text: 'forbidden' }] }, execute: () => { forbiddenExecutions++; return {}; } }));
   ctx.on('agent/error', ({ agent, error }) => {
     errors.push({ agent: agent?.id || null, error: String(error?.stack || error) });
@@ -353,6 +355,16 @@ export function apply(ctx) {
     await freeAgent.whenIdle();
     steps.push({ name: 'user-preemption', state: JSON.parse(readFileSync(config.home + '/space/free_time.json', 'utf8')), file: await liveStore.space({ action: 'read', path: 'drafts/interrupted.md' }), foregroundHandled: freeAgent.session.deriveMessages().some((item) => item.id === 'interrupt-human-priority') });
   } finally { release(); MaoqiuStore.prototype._writeMaterial = originalWrite; }
+  // 0.4.0: the bundled 毛球模式 preset must see maoqiu_* and hide work_*.
+  await ctx.sessionController.create({ sessionId: 'maoqiu-preset-smoke', cwd: config.workspace, agentPreset: 'maoqiu' });
+  const presetAgent = (await ctx.sessionController.resolveAgent('maoqiu-preset-smoke')).agent;
+  const presetTools = ctx.tools.schemas(presetAgent).map((schema) => schema.name).filter(Boolean);
+  presetAgent.followup(message('SMOKE_PRESET 你好呀', 'preset-hello'));
+  await presetAgent.whenIdle();
+  const standardTools = ctx.tools.schemas(agent).map((schema) => schema.name).filter(Boolean);
+  agent.followup(message('SMOKE_STANDARD 标准模式对照', 'standard-hello'));
+  await agent.whenIdle();
+  steps.push({ name: 'maoqiu-preset', presetTools, standardTools, header: presetAgent.session.header?.agentPreset ?? null });
   await save({ ok: true, steps, errors });
   await writeFile(config.donePath, JSON.stringify({ ok: true }) + '\\n');
   }
@@ -429,7 +441,7 @@ try {
           'dsh-maoqiu-smoke-model': '1.0.0',
           'dsh-maoqiu-smoke-probe': '1.0.0',
         },
-        dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'] } },
+        dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-maoqiu'] } },
       },
       null,
       2,
@@ -446,9 +458,12 @@ try {
       [
         { id: 'agent-default-model', config: { provider: 'maoqiu-smoke', model: 'smoke-model' } },
         {
+          // The dsh-maoqiu bundle patch inserts the `maoqiu` row and preset; only override its home here.
+          id: 'maoqiu', config: { home: maoqiuHome, autoRecall: true, autoRecallMode: 'auto' },
+        },
+        {
           insert: [
             { id: 'maoqiu-smoke-model', name: 'dsh-maoqiu-smoke-model' },
-            { id: 'maoqiu', name: 'dsh-maoqiu', config: { home: maoqiuHome, autoRecall: true } },
             { id: 'maoqiu-smoke-probe', name: 'dsh-maoqiu-smoke-probe', config: { ...generated, home: maoqiuHome, workspace, probePath, donePath, pluginDir } },
           ],
         },
@@ -536,6 +551,20 @@ try {
   assert.equal(interrupted.state.runs.at(-1).status, 'paused');
   assert.equal(interrupted.state.runs.at(-1).stop_reason, 'user-arrived');
   assert.ok(requests.flatMap((request) => request.messages).some((message) => message.source?.callId === 'interrupt-write' && /aborted/.test(message.text)));
+  const presetStep = probe.steps.find((step) => step.name === 'maoqiu-preset');
+  assert.ok(presetStep, 'maoqiu preset step missing');
+  for (const name of ['maoqiu_recall', 'maoqiu_experience', 'maoqiu_interest', 'maoqiu_space', 'maoqiu_activity', 'maoqiu_object', 'maoqiu_history', 'maoqiu_freetime'])
+    assert.ok(presetStep.presetTools.includes(name), `maoqiu preset lacks ${name}: ${presetStep.presetTools}`);
+  assert.ok(!presetStep.presetTools.some((name) => name.startsWith('work_')), `maoqiu preset leaks work_*: ${presetStep.presetTools}`);
+  assert.ok(presetStep.standardTools.includes('work_action'), 'standard preset should keep work_* (restriction must stay scoped)');
+  const presetRequest = requests.find((request) => request.marker === 'SMOKE_PRESET');
+  const standardRequest = requests.find((request) => request.marker === 'SMOKE_STANDARD');
+  assert.ok(presetRequest && standardRequest, 'preset/standard requests missing');
+  assert.ok(presetRequest.tools.includes('maoqiu_space') && !presetRequest.tools.includes('work_action'), JSON.stringify(presetRequest.tools));
+  assert.match(presetRequest.system, /你是毛球/);
+  assert.match(presetRequest.system, /毛球成长与独立空间/);
+  assert.doesNotMatch(presetRequest.system, /\p{Extended_Pictographic}/u);
+  assert.doesNotMatch(standardRequest.system, /你是毛球。/);
 
   const report = {
     passed: true,
@@ -555,6 +584,8 @@ try {
       '真实 agent 工具限制隐藏并阻止越界工具，越界工具主体调用为零',
       '原生工具恢复单份草稿及单件物品，另一件物品不回退',
       '空间工具等待时用户消息中断，迟到内容未写入且前台消息进入模型',
+      'bundle 安装的毛球模式预设：可见全部 maoqiu_*，隐藏 work_*；标准模式仍保留 work_*',
+      '毛球模式系统提示含人设与空间使用说明，且不含彩色 Emoji',
     ],
     realQQ: false,
     paidModelAPI: false,
