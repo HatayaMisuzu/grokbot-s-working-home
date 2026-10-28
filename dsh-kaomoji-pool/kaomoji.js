@@ -339,7 +339,7 @@ function buildTool(config, recentStore) {
           type: 'text',
           text: `从颜文字池取到 ${candidates.length} 个候选（${labels}，全池剩余 ${value.remaining} 个）：\n`
             + `${lines.join('\n')}\n`
-            + '挑 1–2 个最贴合当前情绪的自然点缀，不要堆砌；不要换成彩色 Emoji。',
+            + '至多挑 1–2 个最贴合当前情绪的自然点缀，可以不用，不要堆砌；不要换成彩色 Emoji。',
         }]
       },
     },

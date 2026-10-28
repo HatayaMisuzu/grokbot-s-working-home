@@ -19,7 +19,7 @@ function ctx() {
 test('rules: light scenes only, 1–2 per reply, text symbols allowed, colour emoji banned', () => {
   const text = KAOMOJI_RULES.join('\n')
   assert.match(text, /轻松/)
-  assert.match(text, /1–2 个/)
+  assert.match(text, /至多 1–2 个，可以不用/)
   assert.match(text, /♡ ♪ ✿/)
   assert.match(text, /彩色 Emoji.*一律不用/)
   assert.equal(hasColorEmoji(text), false, 'rule text itself must not contain colour emoji')

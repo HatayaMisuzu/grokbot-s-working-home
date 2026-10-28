@@ -8,7 +8,7 @@ export function clampInteger(value, fallback, min, max) {
 
 /** Compact kaomoji usage rules, injected whenever the kaomoji tool is mounted. */
 export const KAOMOJI_RULES = [
-  '颜文字只在轻松、日常或陪伴式回复里自然点缀，每条回复 1–2 个，不必每条都用；正式说明、报错、代码、命令、配置和严肃话题不用。',
+  '颜文字只在轻松、日常或陪伴式回复里自然点缀，每条回复至多 1–2 个，可以不用；正式说明、报错、代码、命令、配置和严肃话题不用。',
   '♡ ♪ ✿ 等文字符号可以作为颜文字的一部分；彩色 Emoji（彩色笑脸、红心、点赞手势等图标）一律不用，它们不是颜文字。需要新候选时可调用 kaomoji 按情绪取样。',
 ]
 
