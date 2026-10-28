@@ -6,7 +6,7 @@
       config:
         # Where run records live. Absolute path; data stays outside the plugin.
         # Defaults to $DSH_HOME/work (usually ~/.dsh/work) when omitted.
-        # home: 'C:/Users/Lenovo/.dsh/work'
+        # home: '<DSH_HOME>/work'
         # Register the seven work_* tools.
         tools: true
         # Register the compact protocol section in the system prompt.
@@ -15,3 +15,6 @@
         activeContext: true
         # Keep each active-run summary bounded (characters).
         activeContextMax: 700
+        # Capture real shell results via tools/post-execute as host evidence.
+        # Command-based evidence without a matching capture is capped at Q1.
+        hostEvidence: true

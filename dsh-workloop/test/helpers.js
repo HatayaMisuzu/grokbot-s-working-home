@@ -80,3 +80,8 @@ export async function callTool(byName, name, args, agent) {
   if (tool === undefined) throw new Error(`tool ${name} 未注册`)
   return tool.execute(args, { agent, signal: new AbortController().signal })
 }
+
+/** A host capture as produced by lib/host.js, for grading tests. */
+export function hostCaptureFor(command, { exitCode = 0, tests = 3, id = 'HX-1' } = {}) {
+  return { id, command, exitCode, tests, timedOut: false, aborted: false, outputSha256: 'x'.repeat(64) }
+}

@@ -21,7 +21,7 @@ function read(relativePath) {
 
 const pkg = JSON.parse(read('package.json') || '{}')
 if (pkg.name !== '@local/workloop') problems.push(`package.name 应为 @local/workloop，实际 ${pkg.name}`)
-if (pkg.version !== '0.1.1') problems.push(`package.version 应为 0.1.1，实际 ${pkg.version}`)
+if (pkg.version !== '0.2.0') problems.push(`package.version 应为 0.2.0，实际 ${pkg.version}`)
 if (pkg.type !== 'module') problems.push('package.type 必须是 module')
 if (pkg.dependencies !== undefined && Object.keys(pkg.dependencies).length > 0) {
   problems.push('插件不应有运行时依赖')
